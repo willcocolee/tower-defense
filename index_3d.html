@@ -729,7 +729,7 @@
             } else if (selectedTower === 'sniper') {
                 mesh = createSniperMesh();
                 mesh.position.set(snapX, groundY, snapZ);
-                range = 25;
+                range = 60; // Map-wide
                 cooldown = 120;
             } else {
                 // Basic
@@ -747,8 +747,10 @@
                 mesh: mesh,
                 type: selectedTower,
                 range: range,
+                damage: selectedTower === 'sniper' ? 50 : (selectedTower === 'scout' ? 10 : 20),
                 cooldown: 0,
-                maxCooldown: cooldown
+                maxCooldown: cooldown,
+                kills: 0
             });
         }
 
@@ -835,7 +837,7 @@
                 uiName.textContent = hitTower.type.toUpperCase();
                 uiRange.textContent = hitTower.range;
                 uiSpeed.textContent = hitTower.maxCooldown * (1000 / 60) + "ms"; // approx
-                uiDamage.textContent = "10"; // Hardcoded for now, add to tower struct later
+                uiDamage.textContent = hitTower.damage; // Now dynamic
                 uiKills.textContent = hitTower.kills || 0;
 
                 // Show Ring
@@ -869,6 +871,25 @@
                 selectionRing.visible = false;
             }
         });
+
+        // Projectiles array
+        const projectiles = [];
+
+        // Projectiles
+        function createProjectile(start, targetPos) {
+            const geom = new THREE.SphereGeometry(0.2, 8, 8);
+            const mat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+            const mesh = new THREE.Mesh(geom, mat);
+            mesh.position.copy(start);
+            scene.add(mesh);
+
+            projectiles.push({
+                mesh: mesh,
+                target: targetPos, // Store the target position, not the enemy object
+                speed: 1.0,
+                active: true
+            });
+        }
 
         document.getElementById('spawnBtn').addEventListener('click', spawnEnemy);
 
@@ -921,26 +942,10 @@
             }
 
             // Tower Logic (Shooting)
-            // ... (Simple cooldown logic if desired, or relying on clicks? The prompts implied mechanics earlier but we mostly did visuals. 
-            // Lets just ensure the loop runs.)
-
-            // If we have towers logic:
             towers.forEach(t => {
                 if (t.cooldown > 0) t.cooldown--;
-
-                if (t.cooldown <= 0) {
+                else {
                     // Find target
-                    let target = null;
-                    let minDist = t.range;
-
-                    for (const e of enemies) {
-                        const dist = t.mesh.position.distanceTo(e.mesh.position);
-                        if (dist < minDist) {
-                            minDist = dist;
-                            target = e;
-                        }
-                    }
-
                     if (target) {
                         // Shoot (Visual laser)
                         const laserGeom = new THREE.BufferGeometry().setFromPoints([
