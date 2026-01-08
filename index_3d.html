@@ -964,6 +964,9 @@
                     if (target) {
                         t.cooldown = t.maxCooldown;
 
+                        // Look at Target (Y-axis only)
+                        t.mesh.lookAt(target.mesh.position.x, t.mesh.position.y, target.mesh.position.z);
+
                         // Create Projectile
                         createProjectile(t.mesh.position.clone().add(new THREE.Vector3(0, 3, 0)), target.mesh.position);
 
