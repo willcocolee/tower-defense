@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Defense</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <div id="ui-layer">
+            <div id="header">
+                <h1>NEON DEFENSE</h1>
+                <div id="stats-bar">
+                    <div class="stat-item">
+                        <span class="label">WAVE</span>
+                        <span class="value" id="wave-display">1</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="label">LIVES</span>
+                        <span class="value" id="lives-display">20</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="label">CREDITS</span>
+                        <span class="value" id="money-display">100</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="controls-bar">
+                <div class="tower-selector selected" data-type="basic" onclick="selectTower('basic')">
+                    <div class="tower-icon basic-icon"></div>
+                    <div class="tower-info">
+                        <span class="name">Turret</span>
+                        <span class="cost">50¢</span>
+                    </div>
+                </div>
+                <!-- Future towers can go here -->
+                <div id="wave-control">
+                    <button id="next-wave-btn">START WAVE</button>
+                    <div class="wave-timer" id="wave-timer"></div>
+                </div>
+            </div>
+        </div>
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>

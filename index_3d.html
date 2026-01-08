@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Tower Defense</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+        }
+
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: sans-serif;
+            pointer-events: none;
+            text-shadow: 0 0 5px #000;
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+        }
+
+        #statsPanel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(30, 41, 59, 0.9);
+            padding: 20px;
+            border-radius: 8px;
+            color: white;
+            font-family: sans-serif;
+            border: 1px solid #475569;
+            width: 200px;
+            display: none;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .stat-label {
+            color: #94a3b8;
+        }
+
+        h2 {
+            margin-top: 0;
+            font-size: 18px;
+            border-bottom: 1px solid #475569;
+            padding-bottom: 8px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background: #ffffff;
+            border: none;
+            border-radius: 4px;
+        }
+    </style>
+    <!-- Import Three.js module -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+
+<body>
+    <div id="info">
+        <h1>3D Tower Defense</h1>
+        <p>Left Click: Place Tower/Select | Right Click: Rotate | Scroll: Zoom</p>
+    </div>
+
+    <div id="statsPanel">
+        <h2 id="refName">Tower</h2>
+        <div class="stat-row">
+            <span class="stat-label">Range</span>
+            <span id="refRange">0</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Damage</span>
+            <span id="refDamage">0</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Cooldown</span>
+            <span id="refSpeed">0ms</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Total Kills</span>
+            <span id="refKills">0</span>
+        </div>
+        <button id="btnCloseStats"
+            style="width: 100%; margin-top: 10px; font-size: 12px; background: #ef4444; color: white;">Close</button>
+    </div>
+
+    <div id="controls">
+        <button id="spawnBtn">Spawn Enemy</button>
+        <div style="width: 20px;"></div>
+        <button id="btnBasic" style="border: 2px solid #3b82f6;">Basic</button>
+        <button id="btnSniper" style="border: 2px solid #555;">Sniper</button>
+        <button id="btnScout" style="border: 2px solid #555;">Scout</button>
+    </div>
+
+    <!-- INLINE SCRIPT TO AVOID CORS ISSUES ON LOCAL FILESYSTEM -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        // Helper for Range Ring
+        function createRangeRing(radius, color) {
+            const geometry = new THREE.RingGeometry(radius - 0.2, radius, 64);
+            const material = new THREE.MeshBasicMaterial({
+                color: color,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.5
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.rotation.x = -Math.PI / 2;
+            mesh.position.y = 0.1; // Just above ground/road
+            return mesh;
+        }
+
+        let ghostRing = createRangeRing(1, 0xffffff);
+
+        // --- SCENE SETUP ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x050505); // Darker background for bloom
+        scene.fog = new THREE.Fog(0x050505, 20, 60);
+
+        // Isometric view
+        const aspect = window.innerWidth / window.innerHeight;
+        const d = 60; // Zoom out for larger map
+        const camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 1, 1000);
+        camera.position.set(20, 20, 20);
+        camera.lookAt(scene.position);
+
+        // --- REALISTIC RENDERER SETUP ---
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Softer shadows
+
+        // Tone Mapping & Color Space
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.0;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+        document.body.appendChild(renderer.domElement);
+
+        // --- POST-PROCESSING ---
+        const composer = new EffectComposer(renderer);
+        const renderPass = new RenderPass(scene, camera);
+        composer.addPass(renderPass);
+
+        // Bloom: Threshold (0-1), Strength, Radius
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+        bloomPass.threshold = 0.6; // Only VERY bright things glow
+        bloomPass.strength = 0.8;  // Intensity
+        bloomPass.radius = 0.5;    // Spread
+        composer.addPass(bloomPass);
+
+        // Controls
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.screenSpacePanning = false;
+        controls.maxPolarAngle = Math.PI / 2; // Prevent going under the map
+
+        // Remap controls to standard RTS style
+        controls.mouseButtons = {
+            LEFT: THREE.MOUSE.PAN,
+            MIDDLE: THREE.MOUSE.DOLLY,
+            RIGHT: THREE.MOUSE.ROTATE
+        };
+
+
+        // --- ADVANCED LIGHTING ---
+        // 1. Hemisphere Light (Sky/Ground Ambient)
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
+        hemiLight.position.set(0, 20, 0);
+        scene.add(hemiLight);
+
+        // 2. Main Sun Directional Light
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.5); // Higher intensity for tone mapping
+        dirLight.position.set(20, 40, 10);
+        dirLight.castShadow = true;
+        // Shadow properties
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.camera.near = 0.5;
+        dirLight.shadow.camera.far = 100;
+        dirLight.shadow.camera.left = -40;
+        dirLight.shadow.camera.right = 40;
+        dirLight.shadow.camera.top = 40;
+        dirLight.shadow.camera.bottom = -40;
+        dirLight.shadow.bias = -0.0005; // Fix shadow acne
+        scene.add(dirLight);
+
+        // --- GAME OBJECTS ---
+        const TILE_SIZE = 2;
+        const MAP_SIZE = 60;
+        // Expanded path (5x larger and longer)
+        const pathNodes = [
+            new THREE.Vector3(-40, 0, -40),
+            new THREE.Vector3(-40, 0, 20),
+            new THREE.Vector3(-10, 0, 20),
+            new THREE.Vector3(-10, 0, -20),
+            new THREE.Vector3(20, 0, -20),
+            new THREE.Vector3(20, 0, 20),
+            new THREE.Vector3(50, 0, 20),
+            new THREE.Vector3(50, 0, -50)
+        ];
+
+        // Large Ground Plane
+        const planeGeom = new THREE.PlaneGeometry(500, 500);
+        const planeMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
+        const groundPlane = new THREE.Mesh(planeGeom, planeMat);
+        groundPlane.rotation.x = -Math.PI / 2;
+        groundPlane.receiveShadow = true;
+        scene.add(groundPlane);
+
+        // Function to create road segments
+        function createRoad() {
+            const roadMat = new THREE.MeshStandardMaterial({
+                color: 0x334155,
+                roughness: 0.9,
+                polygonOffset: true,
+                polygonOffsetFactor: -1 // Draw on top of ground
+            });
+
+            for (let i = 0; i < pathNodes.length - 1; i++) {
+                const start = pathNodes[i];
+                const end = pathNodes[i + 1];
+
+                const vec = new THREE.Vector3().subVectors(end, start);
+                const length = vec.length();
+                const angle = Math.atan2(vec.z, vec.x);
+
+                // Segment mesh (+ extra length to cover corners)
+                const geometry = new THREE.PlaneGeometry(length + (TILE_SIZE / 2), TILE_SIZE * 0.8);
+                const mesh = new THREE.Mesh(geometry, roadMat);
+
+                // Position at midpoint
+                const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
+                mesh.position.copy(mid);
+                mesh.position.y = 0.02; // Slightly above ground
+                mesh.rotation.x = -Math.PI / 2;
+                mesh.rotation.z = -angle;
+
+                mesh.receiveShadow = true;
+                scene.add(mesh);
+
+                // Add rounded corners at nodes? maybe later. Simple rects for now.
+            }
+        }
+        createRoad();
+
+
+        const towers = [];
+        const enemies = [];
+        const projectiles = [];
+
+        // --- LOGIC ---
+
+        function spawnEnemy() {
+            const geom = new THREE.SphereGeometry(0.6, 16, 16);
+            const mat = new THREE.MeshLambertMaterial({ color: 0xff0000 });
+            const mesh = new THREE.Mesh(geom, mat);
+
+            const start = pathNodes[0];
+            mesh.position.copy(start);
+            mesh.position.y = 0.6;
+
+            scene.add(mesh);
+
+            enemies.push({
+                mesh: mesh,
+                nodeIndex: 0,
+                hp: 100,
+                speed: 0.05,
+                active: true
+            });
+        }
+
+        // Create a small UI for errors
+        const errorDiv = document.createElement('div');
+        errorDiv.style.position = 'absolute';
+        errorDiv.style.top = '50%';
+        errorDiv.style.left = '50%';
+        errorDiv.style.transform = 'translate(-50%, -50%)';
+        errorDiv.style.color = '#ff4444';
+        errorDiv.style.fontFamily = 'sans-serif';
+        errorDiv.style.fontSize = '24px';
+        errorDiv.style.fontWeight = 'bold';
+        errorDiv.style.textShadow = '0 0 5px black';
+        errorDiv.style.pointerEvents = 'none';
+        errorDiv.style.opacity = '0';
+        errorDiv.style.transition = 'opacity 0.5s';
+        document.body.appendChild(errorDiv);
+
+        function showError(msg) {
+            errorDiv.textContent = msg;
+            errorDiv.style.opacity = '1';
+            setTimeout(() => errorDiv.style.opacity = '0', 1000);
+        }
+
+        function isPointOnPath(x, z) {
+            const point = new THREE.Vector3(x, 0, z);
+            const threshold = 0.5; // Radius check (path is effectively 1 unit wide)
+
+            for (let i = 0; i < pathNodes.length - 1; i++) {
+                const a = pathNodes[i];
+                const b = pathNodes[i + 1];
+
+                // Line segment distance check
+                const line = new THREE.Line3(a, b);
+                const closest = new THREE.Vector3();
+                line.closestPointToPoint(point, true, closest);
+
+                if (closest.distanceTo(point) < threshold) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        const terrainObjects = [];
+        let selectedTower = 'basic'; // basic | sniper
+
+        // Terrain Generation
+        function generateTerrain() {
+            const geom = new THREE.BoxGeometry(TILE_SIZE, 1, TILE_SIZE);
+            const mat = new THREE.MeshStandardMaterial({ color: 0x64748b });
+
+            let mountainsSpawned = 0;
+            const targetMountains = 2;
+
+            // Try to place mountains
+            for (let attempt = 0; attempt < 1000; attempt++) {
+                if (mountainsSpawned >= targetMountains) break;
+
+                // Pick a center point
+                let cx = Math.floor((Math.random() * 100 - 50) / TILE_SIZE) * TILE_SIZE;
+                let cz = Math.floor((Math.random() * 100 - 50) / TILE_SIZE) * TILE_SIZE;
+
+                const radius = 3; // 7x7 area for a wider, nicer hill
+                const peakHeight = 10; // Peak height
+
+                // Check constraints for the area
+                let validLocation = true;
+
+                // First pass: Validate area
+                for (let dx = -radius; dx <= radius; dx++) {
+                    for (let dz = -radius; dz <= radius; dz++) {
+                        const x = cx + (dx * TILE_SIZE);
+                        const z = cz + (dz * TILE_SIZE);
+
+                        // 1. Edge Constraint (Must be far from center)
+                        if (Math.abs(x) < 35 && Math.abs(z) < 35) {
+                            validLocation = false; break;
+                        }
+
+                        // 2. Map Bounds
+                        if (Math.abs(x) > 65 || Math.abs(z) > 65) {
+                            validLocation = false; break;
+                        }
+
+                        // 3. Path Safety
+                        if (isPointOnPath(x, z)) {
+                            validLocation = false; break;
+                        }
+
+                        // 4. Overlap Safety (Keep hills distinct for now)
+                        if (terrainObjects.some(obj => Math.abs(obj.position.x - x) < 0.1 && Math.abs(obj.position.z - z) < 0.1)) {
+                            validLocation = false; break;
+                        }
+                    }
+                    if (!validLocation) break;
+                }
+
+                if (!validLocation) continue;
+
+                // Second pass: Spawn blocks in stepped pyramid shape
+                mountainsSpawned++;
+
+                for (let dx = -radius; dx <= radius; dx++) {
+                    for (let dz = -radius; dz <= radius; dz++) {
+                        const x = cx + (dx * TILE_SIZE);
+                        const z = cz + (dz * TILE_SIZE);
+
+                        // Calculate height based on distance from center (Manhattan distance for pyramid, or random for noise)
+                        // Let's use max(|dx|,|dz|) for concentric square rings (stepped pyramid)
+                        const dist = Math.max(Math.abs(dx), Math.abs(dz));
+
+                        // Peak is at dist 0. Height drops by 2 for each step out.
+                        let height = peakHeight - (dist * 2);
+
+                        // Optional: Add small random variation to make it look rugged, not perfect steps
+                        // if (dist > 0) height += (Math.random() > 0.5 ? 1 : 0);
+
+                        if (height <= 2) continue; // Too low, blend with ground
+
+                        const mesh = new THREE.Mesh(geom, mat);
+                        mesh.scale.set(1, height, 1);
+                        mesh.position.set(x, height / 2, z);
+                        mesh.castShadow = true;
+                        mesh.receiveShadow = true;
+                        mesh.userData = { isTerrain: true, height: height };
+
+                        scene.add(mesh);
+                        terrainObjects.push(mesh);
+                    }
+                }
+            }
+            console.log("Spawned mountains:", mountainsSpawned);
+        }
+        generateTerrain(); // Call at startup
+
+        // Tower Selection UI
+        const btnBasic = document.getElementById('btnBasic');
+        const btnSniper = document.getElementById('btnSniper');
+        const btnScout = document.getElementById('btnScout');
+
+        btnBasic.addEventListener('click', () => selectTower('basic'));
+        btnSniper.addEventListener('click', () => selectTower('sniper'));
+        btnScout.addEventListener('click', () => selectTower('scout'));
+
+        function selectTower(type) {
+            selectedTower = type;
+            btnBasic.style.borderColor = type === 'basic' ? '#3b82f6' : '#555';
+            btnSniper.style.borderColor = type === 'sniper' ? '#facc15' : '#555';
+            btnScout.style.borderColor = type === 'scout' ? '#4ade80' : '#555';
+        }
+
+        // Procedural Mesh Generators
+        function createScoutMesh() {
+            const group = new THREE.Group();
+
+            // Materials
+            const matSkin = new THREE.MeshLambertMaterial({ color: 0xfacc15 }); // Yellow
+            const matShirt = new THREE.MeshLambertMaterial({ color: 0x3b82f6 }); // Blue
+            const matPants = new THREE.MeshLambertMaterial({ color: 0x1e293b }); // Dark Grey
+            const matGun = new THREE.MeshLambertMaterial({ color: 0x94a3b8 }); // Grey
+
+            // Legs (combined for simplicity or split)
+            const LegL = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.2, 0.5), matPants);
+            LegL.position.set(-0.3, 0.6, 0);
+            LegL.castShadow = true;
+            group.add(LegL);
+
+            const LegR = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.2, 0.5), matPants);
+            LegR.position.set(0.3, 0.6, 0);
+            LegR.castShadow = true;
+            group.add(LegR);
+
+            // Torso
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 0.6), matShirt);
+            torso.position.set(0, 1.8, 0);
+            torso.castShadow = true;
+            group.add(torso);
+
+            // Head
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), matSkin);
+            head.position.set(0, 2.8, 0);
+            head.castShadow = true;
+            group.add(head);
+
+            // Cap
+            const cap = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.2, 0.85), matShirt);
+            cap.position.set(0, 3.25, 0);
+            group.add(cap);
+
+            // Arms
+            // Left Arm (Down)
+            const ArmL = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.0, 0.4), matShirt);
+            ArmL.position.set(-0.8, 1.8, 0);
+            group.add(ArmL);
+            const HandL = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), matSkin);
+            HandL.position.set(-0.8, 1.1, 0);
+            group.add(HandL);
+
+            // Right Arm (Raised aiming gun)
+            const ArmR = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.0, 0.4), matShirt);
+            ArmR.position.set(0.8, 1.8, 0.2);
+            ArmR.rotation.x = -Math.PI / 2; // Point forward
+            group.add(ArmR);
+            const HandR = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), matSkin);
+            HandR.position.set(0.8, 1.8, 0.9); // End of arm
+            group.add(HandR);
+
+            // Pistol
+            const gunMain = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 0.8), matGun);
+            gunMain.position.set(0.8, 2.0, 1.2);
+            group.add(gunMain);
+            const gunHandle = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.4, 0.2), matGun);
+            gunHandle.position.set(0.8, 1.7, 0.9);
+            group.add(gunHandle);
+
+            // Face
+            const matBlack = new THREE.MeshBasicMaterial({ color: 0x000000 });
+
+            // Eyes
+            const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.05), matBlack);
+            eyeL.position.set(-0.2, 2.9, 0.41); // Front of face
+            group.add(eyeL);
+
+            const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.05), matBlack);
+            eyeR.position.set(0.2, 2.9, 0.41);
+            group.add(eyeR);
+
+            // Mouth (Smile)
+            const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.05, 0.05), matBlack);
+            mouth.position.set(0, 2.7, 0.41);
+            group.add(mouth);
+
+            return group;
+        }
+
+        function createSniperMesh() {
+            const group = new THREE.Group();
+
+            // Materials
+            const matSkin = new THREE.MeshLambertMaterial({ color: 0xffdcb1 }); // Light Skin
+            const matClothesDark = new THREE.MeshLambertMaterial({ color: 0x334155 }); // Dark Blue/Grey
+            const matClothesLight = new THREE.MeshLambertMaterial({ color: 0x64748b }); // Lighter Grey padding
+            const matBlack = new THREE.MeshLambertMaterial({ color: 0x111111 });
+            const matGunBody = new THREE.MeshLambertMaterial({ color: 0x94a3b8 }); // Silver/Grey
+            const matGlass = new THREE.MeshLambertMaterial({ color: 0xf59e0b }); // Orange/Gold
+
+            // Legs (Wide Stance)
+            const LegL = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.2, 0.6), matClothesDark);
+            LegL.position.set(-0.4, 0.6, 0);
+            LegL.castShadow = true;
+            group.add(LegL);
+
+            const LegR = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.2, 0.6), matClothesDark);
+            LegR.position.set(0.4, 0.6, 0);
+            LegR.castShadow = true;
+            group.add(LegR);
+
+            // Torso
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.2, 0.7), matClothesDark);
+            torso.position.set(0, 1.8, 0);
+            torso.castShadow = true;
+            group.add(torso);
+
+            // Head
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.9, 0.9), matSkin);
+            head.position.set(0, 2.85, 0);
+            head.castShadow = true;
+            group.add(head);
+
+            // Cap (Backwards/Tactical)
+            const cap = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.3, 1.0), matClothesDark);
+            cap.position.set(0, 3.3, 0);
+            group.add(cap);
+
+            // Headphones
+            const phoneL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.6, 0.4), matBlack);
+            phoneL.position.set(-0.5, 2.85, 0);
+            group.add(phoneL);
+            const phoneR = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.6, 0.4), matBlack);
+            phoneR.position.set(0.5, 2.85, 0);
+            group.add(phoneR);
+            const phoneBand = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.1, 0.2), matBlack);
+            phoneBand.position.set(0, 3.35, 0); // On top of cap
+            group.add(phoneBand);
+
+            // Sunglasses (Visor)
+            const glasses = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.25, 0.1), matGlass);
+            glasses.position.set(0, 2.9, 0.46);
+            group.add(glasses);
+
+            // Arms (Holding Rifle)
+            // Left Arm (Supporting barrel)
+            const ArmL = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.2, 0.4), matClothesLight);
+            ArmL.position.set(-0.6, 2.0, 0.6);
+            ArmL.rotation.x = -Math.PI / 2; // Point forward
+            ArmL.rotation.z = -0.2; // Angle in
+            group.add(ArmL);
+
+            // Right Arm (Trigger)
+            const ArmR = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.2, 0.4), matClothesLight);
+            ArmR.position.set(0.6, 2.0, 0.4);
+            ArmR.rotation.x = -Math.PI / 2;
+            ArmR.rotation.z = 0.2;
+            group.add(ArmR);
+
+            // --- RIFLE ---
+            const rifleGroup = new THREE.Group();
+
+            // Main Body
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.4, 1.5), matGunBody);
+            body.position.set(0, 0, 0);
+            rifleGroup.add(body);
+
+            // Barrel (Long)
+            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2.5, 8), matBlack);
+            barrel.rotation.x = Math.PI / 2;
+            barrel.position.set(0, 0.1, 2.0);
+            rifleGroup.add(barrel);
+
+            // Muzzle Brake
+            const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.4), matBlack);
+            muzzle.position.set(0, 0.1, 3.3);
+            rifleGroup.add(muzzle);
+
+            // Scope
+            const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 0.8, 16), matBlack);
+            scope.rotation.x = Math.PI / 2;
+            scope.position.set(0, 0.4, 0.2);
+            rifleGroup.add(scope);
+
+            // Stock
+            const stock = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 0.8), matBlack);
+            stock.position.set(0, -0.1, -1.0);
+            rifleGroup.add(stock);
+
+            // Position Rifle in hands
+            rifleGroup.position.set(0, 2.1, 0.5);
+            group.add(rifleGroup);
+
+            return group;
+        }
+
+        // Stats UI Refs
+        const uiPanel = document.getElementById('statsPanel');
+        const uiName = document.getElementById('refName');
+        const uiRange = document.getElementById('refRange');
+        const uiDamage = document.getElementById('refDamage');
+        const uiSpeed = document.getElementById('refSpeed');
+        const uiKills = document.getElementById('refKills');
+        document.getElementById('btnCloseStats').onclick = () => {
+            selectedPlacedTower = null;
+            uiPanel.style.display = 'none';
+            selectionRing.visible = false;
+        };
+
+        // let ghostRing = ... (Removed duplicate)
+
+        // Ensure selectionRing is here
+        let selectionRing = new THREE.Mesh(new THREE.RingGeometry(1, 1.2, 32), new THREE.MeshBasicMaterial({ color: 0x4ade80, transparent: true, opacity: 0.5, side: THREE.DoubleSide }));
+        selectionRing.rotation.x = -Math.PI / 2;
+        selectionRing.visible = false;
+        scene.add(selectionRing);
+
+        function updateGhost(x, z) {
+            if (!selectedTower) {
+                ghostRing.visible = false;
+                return;
+            }
+            ghostRing.visible = true;
+            ghostRing.position.set(x, 0.2, z);
+
+            // Scale based on tower range
+            let range = 8;
+            if (selectedTower === 'sniper') range = 15;
+            if (selectedTower === 'scout') range = 10;
+
+            // RingGeometry is static, so scale string
+            // Base radius is ~1. So scale to range.
+            ghostRing.scale.set(range, range, 1);
+        }
+
+        // --- UPDATED INPUT LOGIC ---
+        // (Existing raycaster/listeners need to be slightly modified to trigger this)
+
+
+        function placeTower(x, z, groundY) {
+            // ... (keep existing placeTower)
+            // Snap to grid
+            const snapX = Math.round(x / TILE_SIZE) * TILE_SIZE;
+            const snapZ = Math.round(z / TILE_SIZE) * TILE_SIZE;
+
+            // 1. Check existing
+            if (towers.some(t => Math.abs(t.mesh.position.x - snapX) < 0.1 && Math.abs(t.mesh.position.z - snapZ) < 0.1)) {
+                showError("BLOCKED: Occupied");
+                return;
+            }
+
+            // 2. Check Path
+            if (isPointOnPath(snapX, snapZ)) {
+                showError("BLOCKED: Path");
+                return;
+            }
+
+            // 3. Check High Ground Rule
+            // define 'High Ground' as groundY > 0.1
+            const isHighGround = groundY > 0.1;
+
+            if (isHighGround && selectedTower !== 'sniper') {
+                showError("Only Snipers allow High Ground!");
+                return;
+            }
+
+            let mesh;
+            let range = 8;
+            let cooldown = 30; // 0.5s at 60fps
+
+            if (selectedTower === 'scout') {
+                mesh = createScoutMesh();
+                // Adjust position since group origin is 0,0,0
+                mesh.position.set(snapX, groundY, snapZ);
+                range = 10;
+                cooldown = 15; // Fast fire
+            } else if (selectedTower === 'sniper') {
+                mesh = createSniperMesh();
+                mesh.position.set(snapX, groundY, snapZ);
+                range = 25;
+                cooldown = 120;
+            } else {
+                // Basic
+                const geom = new THREE.BoxGeometry(1.5, 3, 1.5);
+                const mat = new THREE.MeshLambertMaterial({ color: 0x0088ff });
+                mesh = new THREE.Mesh(geom, mat);
+                mesh.position.set(snapX, groundY + 1.5, snapZ);
+            }
+
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            scene.add(mesh);
+
+            towers.push({
+                mesh: mesh,
+                type: selectedTower,
+                range: range,
+                cooldown: 0,
+                maxCooldown: cooldown
+            });
+        }
+
+        // Raycaster for clicks
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        // Prevent context menu
+        window.addEventListener('contextmenu', e => e.preventDefault());
+
+        let isDragging = false;
+        let mouseDownPos = new THREE.Vector2();
+
+        window.addEventListener('pointerdown', (event) => {
+            if (event.target.tagName === 'BUTTON') return;
+            mouseDownPos.set(event.clientX, event.clientY);
+            isDragging = false;
+        });
+
+        window.addEventListener('pointermove', (event) => {
+            const dist = mouseDownPos.distanceTo(new THREE.Vector2(event.clientX, event.clientY));
+            if (dist > 5) isDragging = true;
+
+            // Ghost Ring Update
+            if (selectedTower) {
+                mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+                raycaster.setFromCamera(mouse, camera);
+
+                // Raycast against ground for ghost
+                const intersects = raycaster.intersectObjects([groundPlane, ...terrainObjects]);
+                if (intersects.length > 0) {
+                    const hit = intersects[0];
+                    // Snap
+                    const snapX = Math.round(hit.point.x / TILE_SIZE) * TILE_SIZE;
+                    const snapZ = Math.round(hit.point.z / TILE_SIZE) * TILE_SIZE;
+                    let y = hit.point.y;
+                    if (hit.object.userData.isTerrain) y = hit.object.userData.height;
+
+                    updateGhost(snapX, snapZ);
+                    ghostRing.position.y = y + 0.2;
+                }
+            }
+        });
+
+        window.addEventListener('pointerup', (event) => {
+            if (isDragging) return;
+            if (event.button !== 0) return;
+            if (event.target.tagName === 'BUTTON') return;
+
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+
+            // 1. Check if clicked on EXISTING TOWER (Mesh check)
+            // We need to check all towers meshes
+            const towerMeshes = towers.map(t => t.mesh);
+            // Note: Scouts are Groups, raycaster checks children. 
+            // We'll traverse towers and collect all children for raycast? Or just intersectObject recursive
+
+            // Simpler: Just raycast EVERYTHING in scene logic 
+            const allIntersects = raycaster.intersectObjects(scene.children, true);
+
+            // Find first tower hit
+            let hitTower = null;
+            for (let i = 0; i < allIntersects.length; i++) {
+                const obj = allIntersects[i].object;
+                // Find parent tower object
+                const towerObj = towers.find(t => t.mesh === obj || t.mesh === obj.parent || (obj.parent && t.mesh === obj.parent.parent));
+                if (towerObj) {
+                    hitTower = towerObj;
+                    break;
+                }
+            }
+
+            if (hitTower) {
+                // SELECT TOWER
+                selectedPlacedTower = hitTower;
+                selectedTower = null; // Exit placement mode checks
+
+                // Show Stats
+                uiPanel.style.display = 'block';
+                uiName.textContent = hitTower.type.toUpperCase();
+                uiRange.textContent = hitTower.range;
+                uiSpeed.textContent = hitTower.maxCooldown * (1000 / 60) + "ms"; // approx
+                uiDamage.textContent = "10"; // Hardcoded for now, add to tower struct later
+                uiKills.textContent = hitTower.kills || 0;
+
+                // Show Ring
+                selectionRing.visible = true;
+                selectionRing.position.copy(hitTower.mesh.position);
+                selectionRing.position.y = hitTower.mesh.position.y - 1.5 + 0.1; // Base level
+                if (hitTower.type === 'scout') selectionRing.position.y = hitTower.mesh.position.y + 0.1; // Scouts are at 0 origin
+
+                selectionRing.scale.set(hitTower.range, hitTower.range, 1);
+
+                return;
+            }
+
+            // 2. If no tower hit, try PLACE TOWER (if mode active)
+            if (selectedTower) {
+                const objectsToCheck = [groundPlane, ...terrainObjects];
+                const intersects = raycaster.intersectObjects(objectsToCheck);
+
+                if (intersects.length > 0) {
+                    const hit = intersects[0];
+                    const point = hit.point;
+                    let groundY = 0;
+                    if (hit.object.userData.isTerrain) groundY = hit.object.userData.height;
+
+                    placeTower(point.x, point.z, groundY);
+                }
+            } else {
+                // Clicked empty space: Deselect
+                selectedPlacedTower = null;
+                uiPanel.style.display = 'none';
+                selectionRing.visible = false;
+            }
+        });
+
+        document.getElementById('spawnBtn').addEventListener('click', spawnEnemy);
+
+        // --- LOOP ---
+
+        // Initialize ghostRing
+        // let ghostRing = createRangeRing(1, 0xffffff); // REMOVED DUPLICATE
+
+        // We need to add it to scene AFTER scene is created, which is done above.
+        // Wait, scene is created in the previous block. We should make sure ghostRing is added.
+        scene.add(ghostRing);
+        ghostRing.visible = false;
+
+        // ... (logic) ...
+
+        // --- ANIMATION LOOP ---
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+
+            // Enemy Logic
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const enemy = enemies[i];
+                if (!enemy.active) continue;
+
+                // Move towards next node
+                const target = pathNodes[enemy.nodeIndex + 1];
+                if (!target) {
+                    // Reached end
+                    enemy.active = false;
+                    scene.remove(enemy.mesh);
+                    enemies.splice(i, 1);
+                    // Lives --?
+                    continue;
+                }
+
+                const dir = new THREE.Vector3().subVectors(target, enemy.mesh.position).normalize();
+                const dist = enemy.mesh.position.distanceTo(target);
+
+                if (dist < 0.2) {
+                    enemy.nodeIndex++;
+                    if (enemy.nodeIndex >= pathNodes.length - 1) {
+                        enemy.active = false;
+                        scene.remove(enemy.mesh);
+                        enemies.splice(i, 1);
+                    }
+                } else {
+                    enemy.mesh.position.add(dir.multiplyScalar(enemy.speed));
+                }
+            }
+
+            // Tower Logic (Shooting)
+            // ... (Simple cooldown logic if desired, or relying on clicks? The prompts implied mechanics earlier but we mostly did visuals. 
+            // Lets just ensure the loop runs.)
+
+            // If we have towers logic:
+            towers.forEach(t => {
+                if (t.cooldown > 0) t.cooldown--;
+
+                if (t.cooldown <= 0) {
+                    // Find target
+                    let target = null;
+                    let minDist = t.range;
+
+                    for (const e of enemies) {
+                        const dist = t.mesh.position.distanceTo(e.mesh.position);
+                        if (dist < minDist) {
+                            minDist = dist;
+                            target = e;
+                        }
+                    }
+
+                    if (target) {
+                        // Shoot (Visual laser)
+                        const laserGeom = new THREE.BufferGeometry().setFromPoints([
+                            t.mesh.position.clone().add(new THREE.Vector3(0, 1.5, 0)),
+                            target.mesh.position
+                        ]);
+                        const laserMat = new THREE.LineBasicMaterial({ color: 0x00ffff });
+                        const laser = new THREE.Line(laserGeom, laserMat);
+                        scene.add(laser);
+
+                        // Remove laser next frame (super simple)
+                        setTimeout(() => scene.remove(laser), 100);
+
+                        t.cooldown = t.maxCooldown;
+                    }
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // Resize handler
+        window.addEventListener('resize', () => {
+            const aspect = window.innerWidth / window.innerHeight;
+            camera.left = -d * aspect;
+            camera.right = d * aspect;
+            camera.top = d;
+            camera.bottom = -d;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+
+</html>
