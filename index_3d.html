@@ -873,7 +873,7 @@
         });
 
         // Projectiles array
-        const projectiles = [];
+        // const projectiles = []; // Removed duplicate declaration
 
         // Projectiles
         function createProjectile(start, targetPos) {
@@ -946,25 +946,67 @@
                 if (t.cooldown > 0) t.cooldown--;
                 else {
                     // Find target
+                    let target = null;
+                    let minDist = t.range;
+
+                    for (const e of enemies) {
+                        const dist = t.mesh.position.distanceTo(e.mesh.position);
+                        if (dist < minDist) {
+                            minDist = dist;
+                            target = e;
+                        }
+                    }
+
                     if (target) {
-                        // Shoot (Visual laser)
-                        const laserGeom = new THREE.BufferGeometry().setFromPoints([
-                            t.mesh.position.clone().add(new THREE.Vector3(0, 1.5, 0)),
-                            target.mesh.position
-                        ]);
-                        const laserMat = new THREE.LineBasicMaterial({ color: 0x00ffff });
-                        const laser = new THREE.Line(laserGeom, laserMat);
-                        scene.add(laser);
-
-                        // Remove laser next frame (super simple)
-                        setTimeout(() => scene.remove(laser), 100);
-
                         t.cooldown = t.maxCooldown;
+
+                        // Create Projectile
+                        createProjectile(t.mesh.position.clone().add(new THREE.Vector3(0, 3, 0)), target.mesh.position);
+
+                        // Visual Laser (Optional, maybe for sniper only?)
+                        if (t.type === 'sniper') {
+                            const laserGeom = new THREE.BufferGeometry().setFromPoints([
+                                t.mesh.position.clone().add(new THREE.Vector3(0, 3, 0)),
+                                target.mesh.position
+                            ]);
+                            const laserMat = new THREE.LineBasicMaterial({ color: 0xffaa00 });
+                            const laser = new THREE.Line(laserGeom, laserMat);
+                            scene.add(laser);
+                            setTimeout(() => scene.remove(laser), 50);
+                        }
+
+                        // Damage Logic
+                        target.hp -= t.damage;
+                        if (target.hp <= 0) {
+                            target.active = false;
+                            scene.remove(target.mesh);
+                            const idx = enemies.indexOf(target);
+                            if (idx > -1) enemies.splice(idx, 1);
+
+                            t.kills++;
+                            if (selectedPlacedTower === t) {
+                                uiKills.textContent = t.kills;
+                            }
+                        }
                     }
                 }
             });
 
-            renderer.render(scene, camera);
+            // Update Projectiles
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                const p = projectiles[i];
+                if (!p.active) continue;
+
+                const dir = new THREE.Vector3().subVectors(p.target, p.mesh.position).normalize();
+                p.mesh.position.add(dir.multiplyScalar(2.0)); // Fast speed
+
+                if (p.mesh.position.distanceTo(p.target) < 1.0) {
+                    scene.remove(p.mesh);
+                    projectiles.splice(i, 1);
+                }
+            }
+
+            composer.render();
         }
 
         animate();
