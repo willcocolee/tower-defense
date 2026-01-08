@@ -715,6 +715,10 @@
                 showError("Only Snipers allow High Ground!");
                 return;
             }
+            if (!isHighGround && selectedTower === 'sniper') {
+                showError("Snipers MUST be on High Ground!");
+                return;
+            }
 
             let mesh;
             let range = 8;
