@@ -160,6 +160,80 @@
                 btnMusic.textContent = "🎵 Music Off";
             }
         });
+
+        // --- SOUND FX ENGINE (Web Audio API) ---
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+
+        // Resume audio context on first user interaction
+        window.addEventListener('click', () => {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }, { once: true });
+
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') return;
+
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            const now = audioCtx.currentTime;
+
+            if (type === 'sniper') {
+                // BIG BANG
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.exponentialRampToValueAtTime(40, now + 0.3);
+
+                gainNode.gain.setValueAtTime(0.5, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+
+                osc.start(now);
+                osc.stop(now + 0.4);
+
+            } else if (type === 'pyro') {
+                // HISS / WHITE NOISE (Simulated with erratic saw)
+                // Real noise requires buffer, let's try erratic saw for "fire"
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(50, now);
+                osc.frequency.linearRampToValueAtTime(800, now + 0.1);
+
+                // Quick envelope
+                gainNode.gain.setValueAtTime(0.1, now);
+                gainNode.gain.linearRampToValueAtTime(0, now + 0.2);
+
+                osc.start(now);
+                osc.stop(now + 0.2);
+
+            } else if (type === 'tesla') {
+                // ZAP (High pitch slide)
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.linearRampToValueAtTime(100, now + 0.1);
+
+                gainNode.gain.setValueAtTime(0.1, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+
+                osc.start(now);
+                osc.stop(now + 0.1);
+
+            } else {
+                // BASIC PEW
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(600, now);
+                osc.frequency.exponentialRampToValueAtTime(200, now + 0.1);
+
+                gainNode.gain.setValueAtTime(0.1, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+
+                osc.start(now);
+                osc.stop(now + 0.1);
+            }
+        }
     </script>
 
     <!-- INLINE SCRIPT TO AVOID CORS ISSUES ON LOCAL FILESYSTEM -->
@@ -1114,6 +1188,9 @@
 
                         // Look at Target (Y-axis only)
                         t.mesh.lookAt(target.mesh.position.x, t.mesh.position.y, target.mesh.position.z);
+
+                        // PLAY SOUND
+                        playSound(t.type);
 
                         // Create Projectile (Standard)
                         if (t.type !== 'pyro' && t.type !== 'tesla') {
