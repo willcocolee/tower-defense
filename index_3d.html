@@ -122,6 +122,12 @@
             <span class="stat-label">Total Kills</span>
             <span id="refKills">0</span>
         </div>
+        <div class="stat-row">
+            <span class="stat-label">Level</span>
+            <span id="refLevel">1</span>
+        </div>
+        <button id="btnUpgrade"
+            style="width: 100%; margin-top: 10px; background: #eab308; color: black; font-weight: bold; cursor: pointer;">UPGRADE</button>
         <button id="btnCloseStats"
             style="width: 100%; margin-top: 10px; font-size: 12px; background: #ef4444; color: white;">Close</button>
     </div>
@@ -1298,11 +1304,14 @@
                             const bolts = [];
                             bolts.push(target);
 
-                            // Find 2 more targets near the main target (Chain)
-                            const chainRange = 8;
+                            // Find targets near the main target (Chain)
+                            // Level 1: 2 extra (3 total)
+                            // Level 2: 3 extra (4 total)
+                            // Level 3: 4 extra (5 total)
+                            const chainLimit = 1 + t.level;
                             let chainCount = 0;
                             for (const e of enemies) {
-                                if (chainCount >= 2) break;
+                                if (chainCount >= chainLimit) break;
                                 if (e === target) continue;
                                 if (e.mesh.position.distanceTo(target.mesh.position) < chainRange) {
                                     bolts.push(e);
