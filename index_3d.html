@@ -102,7 +102,7 @@
         <p>Left Click: Place Tower/Select | Right Click: Rotate | Scroll: Zoom</p>
     </div>
 
-    <div id="enemyCountDisplay">Enemies: 0</div>
+    <div id="enemyCountDisplay">Enemies: 0 | Wave: <span id="waveDisplay">1</span></div>
 
     <div id="statsPanel">
         <h2 id="refName">Tower</h2>
@@ -127,7 +127,7 @@
     </div>
 
     <div id="controls">
-        <button id="spawnBtn">Spawn Enemy</button>
+        <button id="btnStartWave" style="background: #22c55e; color: white;">Start Game</button>
         <div style="width: 20px;"></div>
         <button id="btnBasic" style="border: 2px solid #3b82f6;">Basic</button>
         <button id="btnSniper" style="border: 2px solid #555;">Sniper</button>
@@ -398,13 +398,26 @@
 
         const towers = [];
         const enemies = [];
-        const projectiles = [];
+        const projectiles = []; // Removed duplicate declaration
+
+        // --- WAVE SYSTEM VARIABLES ---
+        let wave = 1;
+        let waveState = 'IDLE'; // IDLE, SPAWNING, ACTIVE, COOLDOWN
+        let enemiesToSpawn = 0;
+        let spawnTimer = 0;
+        let waveCooldown = 0;
+        const TIME_BETWEEN_SPAWNS = 40; // ~0.7s
+        const TIME_BETWEEN_WAVES = 300; // ~5s
 
         // --- LOGIC ---
 
-        function spawnEnemy() {
+        function spawnEnemy(hpOverride) {
             const geom = new THREE.SphereGeometry(0.6, 16, 16);
-            const mat = new THREE.MeshLambertMaterial({ color: 0xff0000 });
+            // Color shift based on wave strength (Red -> Purple)
+            const hue = Math.max(0, 0.0 + (wave * 0.05));
+            const color = new THREE.Color().setHSL(hue > 1 ? 0 : (1 - hue), 1, 0.5);
+
+            const mat = new THREE.MeshLambertMaterial({ color: color });
             const mesh = new THREE.Mesh(geom, mat);
 
             const start = pathNodes[0];
@@ -413,11 +426,15 @@
 
             scene.add(mesh);
 
+            // Scale HP with Wave
+            const hp = hpOverride || (100 + (wave * 25));
+
             enemies.push({
                 mesh: mesh,
                 nodeIndex: 0,
-                hp: 100,
-                speed: 0.05,
+                hp: hp,
+                maxHp: hp,
+                speed: 0.05 + (wave * 0.005), // Get slightly faster
                 active: true
             });
         }
@@ -1117,7 +1134,7 @@
             });
         }
 
-        document.getElementById('spawnBtn').addEventListener('click', spawnEnemy);
+        // document.getElementById('spawnBtn').addEventListener('click', spawnEnemy); // Replaced by Wave System
 
         // --- LOOP ---
 
@@ -1148,7 +1165,7 @@
                     enemy.active = false;
                     scene.remove(enemy.mesh);
                     enemies.splice(i, 1);
-                    // Lives --?
+                    // Lives --? (TODO: Add lives)
                     continue;
                 }
 
@@ -1164,6 +1181,36 @@
                     }
                 } else {
                     enemy.mesh.position.add(dir.multiplyScalar(enemy.speed));
+                }
+            }
+
+            // --- WAVE SYSTEM UPDATE ---
+            if (waveState === 'SPAWNING') {
+                if (spawnTimer > 0) {
+                    spawnTimer--;
+                } else {
+                    spawnEnemy();
+                    enemiesToSpawn--;
+                    spawnTimer = TIME_BETWEEN_SPAWNS;
+
+                    if (enemiesToSpawn <= 0) {
+                        waveState = 'ACTIVE';
+                    }
+                }
+            } else if (waveState === 'ACTIVE') {
+                // Check if all enemies dead
+                if (enemies.length === 0) {
+                    waveState = 'COOLDOWN';
+                    waveCooldown = TIME_BETWEEN_WAVES;
+                    showError("Wave Cleared! Next wave soon...");
+                }
+            } else if (waveState === 'COOLDOWN') {
+                if (waveCooldown > 0) {
+                    waveCooldown--;
+                } else {
+                    // NEXT WAVE
+                    wave++;
+                    startWave();
                 }
             }
 
