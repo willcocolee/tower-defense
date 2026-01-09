@@ -439,6 +439,25 @@
             });
         }
 
+        const btnStartWave = document.getElementById('btnStartWave');
+        const waveDisplay = document.getElementById('waveDisplay');
+
+        btnStartWave.addEventListener('click', () => {
+            if (waveState === 'IDLE') {
+                startWave();
+                btnStartWave.style.display = 'none'; // Hide after start, let it run
+            }
+        });
+
+        function startWave() {
+            waveState = 'SPAWNING';
+            // Wave Logic: 5 + Wave Index enemies
+            enemiesToSpawn = 5 + Math.floor(wave * 1.5);
+            spawnTimer = 0;
+            waveDisplay.textContent = wave;
+            showError(`Wave ${wave} Started!`);
+        }
+
         // Create a small UI for errors
         const errorDiv = document.createElement('div');
         errorDiv.style.position = 'absolute';
