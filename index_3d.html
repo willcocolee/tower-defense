@@ -132,7 +132,35 @@
         <button id="btnBasic" style="border: 2px solid #3b82f6;">Basic</button>
         <button id="btnSniper" style="border: 2px solid #555;">Sniper</button>
         <button id="btnScout" style="border: 2px solid #555;">Scout</button>
+        <button id="btnPyro" style="border: 2px solid #555; color: #f97316;">Pyro</button>
+        <button id="btnTesla" style="border: 2px solid #555; color: #0ea5e9;">Tesla</button>
+        <div style="width: 20px;"></div>
+        <button id="btnMusic" style="border: 2px solid #888;">🎵 Music</button>
     </div>
+
+    <!-- Background Music (Hidden) -->
+    <div id="musicContainer" style="display:none;"></div>
+    <script>
+        // Simple YouTube Player Embed Logic
+        // We inject the iframe when button is clicked to bypass some autoplay restrictions cleanly
+        const btnMusic = document.getElementById('btnMusic');
+        let musicPlaying = false;
+
+        btnMusic.addEventListener('click', () => {
+            const container = document.getElementById('musicContainer');
+            if (!musicPlaying) {
+                container.innerHTML = '<iframe width="1" height="1" src="https://www.youtube.com/embed/vq2AfGYwbE4?autoplay=1&loop=1&playlist=vq2AfGYwbE4" frameborder="0" allow="autoplay"></iframe>';
+                musicPlaying = true;
+                btnMusic.style.borderColor = '#4ade80'; // Green
+                btnMusic.textContent = "🔊 Music On";
+            } else {
+                container.innerHTML = '';
+                musicPlaying = false;
+                btnMusic.style.borderColor = '#888';
+                btnMusic.textContent = "🎵 Music Off";
+            }
+        });
+    </script>
 
     <!-- INLINE SCRIPT TO AVOID CORS ISSUES ON LOCAL FILESYSTEM -->
     <script type="module">
@@ -458,16 +486,22 @@
         const btnBasic = document.getElementById('btnBasic');
         const btnSniper = document.getElementById('btnSniper');
         const btnScout = document.getElementById('btnScout');
+        const btnPyro = document.getElementById('btnPyro');
+        const btnTesla = document.getElementById('btnTesla');
 
         btnBasic.addEventListener('click', () => selectTower('basic'));
         btnSniper.addEventListener('click', () => selectTower('sniper'));
         btnScout.addEventListener('click', () => selectTower('scout'));
+        btnPyro.addEventListener('click', () => selectTower('pyro'));
+        btnTesla.addEventListener('click', () => selectTower('tesla'));
 
         function selectTower(type) {
             selectedTower = type;
             btnBasic.style.borderColor = type === 'basic' ? '#3b82f6' : '#555';
             btnSniper.style.borderColor = type === 'sniper' ? '#facc15' : '#555';
             btnScout.style.borderColor = type === 'scout' ? '#4ade80' : '#555';
+            btnPyro.style.borderColor = type === 'pyro' ? '#f97316' : '#555';
+            btnTesla.style.borderColor = type === 'tesla' ? '#0ea5e9' : '#555';
         }
 
         // Procedural Mesh Generators
@@ -661,6 +695,91 @@
             return group;
         }
 
+        function createPyroMesh() {
+            const group = new THREE.Group();
+
+            // Materials
+            const matRobe = new THREE.MeshStandardMaterial({ color: 0x7c2d12, roughness: 0.9 }); // Dark Red
+            const matTrim = new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.6, emissive: 0xf97316, emissiveIntensity: 0.2 }); // Orange glow
+            const matSkin = new THREE.MeshStandardMaterial({ color: 0xfca5a5, roughness: 0.8 });
+            const matStaff = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 1.0 }); // Wood
+            const matFire = new THREE.MeshStandardMaterial({ color: 0xff4400, emissive: 0xff5500, emissiveIntensity: 2.0, transparent: true, opacity: 0.8 });
+
+            // Robe Body
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.6, 1.8, 8), matRobe);
+            body.position.set(0, 0.9, 0);
+            body.castShadow = true;
+            group.add(body);
+
+            // Head (Hooded)
+            const hood = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.7), matRobe);
+            hood.position.set(0, 2.1, 0);
+            hood.castShadow = true;
+            group.add(hood);
+
+            const face = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), matSkin);
+            face.position.set(0, 2.1, 0.15); // Peek out
+            group.add(face);
+
+            // Staff
+            const staffHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.5), matStaff);
+            staffHandle.position.set(0.6, 1.5, 0.5);
+            staffHandle.rotation.x = 0.2;
+            group.add(staffHandle);
+
+            // Orb on staff
+            const orb = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 8), matFire);
+            orb.position.set(0.6, 2.7, 0.7);
+            group.add(orb);
+
+            // Light from staff
+            const light = new THREE.PointLight(0xff5500, 2, 5);
+            light.position.set(0.6, 2.7, 0.7);
+            group.add(light);
+
+            return group;
+        }
+
+        function createTeslaMesh() {
+            const group = new THREE.Group();
+
+            // Materials
+            const matMetal = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.9, roughness: 0.2 });
+            const matCoil = new THREE.MeshStandardMaterial({ color: 0xb8c0ff, metalness: 0.8, roughness: 0.3 });
+            const matEnergy = new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x00ffff, emissiveIntensity: 2.0 });
+
+            // Base platform
+            const base = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.0, 0.5, 8), matMetal);
+            base.position.set(0, 0.25, 0);
+            base.castShadow = true;
+            group.add(base);
+
+            // Pillar
+            const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 1.5, 8), matMetal);
+            pillar.position.set(0, 1.25, 0);
+            group.add(pillar);
+
+            // Coils (Rings)
+            for (let i = 0; i < 3; i++) {
+                const ring = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.08, 8, 16), matCoil);
+                ring.rotation.x = Math.PI / 2;
+                ring.position.set(0, 1.0 + (i * 0.6), 0);
+                group.add(ring);
+            }
+
+            // Top Orb
+            const orb = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 16), matEnergy);
+            orb.position.set(0, 2.5, 0);
+            group.add(orb);
+
+            // Ambient glow
+            const light = new THREE.PointLight(0x00ffff, 1.5, 4);
+            light.position.set(0, 2.5, 0);
+            group.add(light);
+
+            return group;
+        }
+
         // Stats UI Refs
         const uiPanel = document.getElementById('statsPanel');
         const uiName = document.getElementById('refName');
@@ -692,8 +811,10 @@
 
             // Scale based on tower range
             let range = 8;
-            if (selectedTower === 'sniper') range = 15;
+            if (selectedTower === 'sniper') range = 60; // Sync with real range
             if (selectedTower === 'scout') range = 10;
+            if (selectedTower === 'pyro') range = 6;
+            if (selectedTower === 'tesla') range = 15;
 
             // RingGeometry is static, so scale string
             // Base radius is ~1. So scale to range.
@@ -750,6 +871,16 @@
                 mesh.position.set(snapX, groundY, snapZ);
                 range = 60; // Map-wide
                 cooldown = 120;
+            } else if (selectedTower === 'pyro') {
+                mesh = createPyroMesh();
+                mesh.position.set(snapX, groundY, snapZ);
+                range = 6; // Very short range
+                cooldown = 5; // Very fast tick
+            } else if (selectedTower === 'tesla') {
+                mesh = createTeslaMesh();
+                mesh.position.set(snapX, groundY, snapZ);
+                range = 15; // Medium range
+                cooldown = 45;
             } else {
                 // Basic
                 const geom = new THREE.BoxGeometry(1.5, 3, 1.5);
@@ -766,7 +897,9 @@
                 mesh: mesh,
                 type: selectedTower,
                 range: range,
-                damage: selectedTower === 'sniper' ? 50 : (selectedTower === 'scout' ? 10 : 20),
+                type: selectedTower,
+                range: range,
+                damage: selectedTower === 'sniper' ? 50 : (selectedTower === 'scout' ? 10 : (selectedTower === 'pyro' ? 2 : (selectedTower === 'tesla' ? 25 : 20))),
                 cooldown: 0,
                 maxCooldown: cooldown,
                 kills: 0
@@ -982,10 +1115,14 @@
                         // Look at Target (Y-axis only)
                         t.mesh.lookAt(target.mesh.position.x, t.mesh.position.y, target.mesh.position.z);
 
-                        // Create Projectile
-                        createProjectile(t.mesh.position.clone().add(new THREE.Vector3(0, 3, 0)), target.mesh.position);
+                        // Create Projectile (Standard)
+                        if (t.type !== 'pyro' && t.type !== 'tesla') {
+                            createProjectile(t.mesh.position.clone().add(new THREE.Vector3(0, 3, 0)), target.mesh.position);
+                        }
 
-                        // Visual Laser (Optional, maybe for sniper only?)
+                        // VISUAL EFFECTS & SPECIAL LOGIC
+
+                        // Sniper Tracer
                         if (t.type === 'sniper') {
                             const laserGeom = new THREE.BufferGeometry().setFromPoints([
                                 t.mesh.position.clone().add(new THREE.Vector3(0, 3, 0)),
@@ -997,7 +1134,67 @@
                             setTimeout(() => scene.remove(laser), 50);
                         }
 
-                        // Damage Logic
+                        // Pyromancer Flame
+                        if (t.type === 'pyro') {
+                            // Draw a thicker orange line
+                            /* 
+                                Ideally particles, but line is easier for single file. 
+                            */
+                            const laserGeom = new THREE.BufferGeometry().setFromPoints([
+                                t.mesh.position.clone().add(new THREE.Vector3(0.6, 2.7, 0.7)), // Staff tip
+                                target.mesh.position
+                            ]);
+                            const laserMat = new THREE.LineBasicMaterial({ color: 0xff4400, linewidth: 3 });
+                            const laser = new THREE.Line(laserGeom, laserMat);
+                            scene.add(laser);
+                            setTimeout(() => scene.remove(laser), 40); // Fast fade for flicker
+                        }
+
+                        // Tesla Lightning
+                        if (t.type === 'tesla') {
+                            const bolts = [];
+                            bolts.push(target);
+
+                            // Find 2 more targets near the main target (Chain)
+                            const chainRange = 8;
+                            let chainCount = 0;
+                            for (const e of enemies) {
+                                if (chainCount >= 2) break;
+                                if (e === target) continue;
+                                if (e.mesh.position.distanceTo(target.mesh.position) < chainRange) {
+                                    bolts.push(e);
+                                    // Deal damage to chained
+                                    e.hp -= (t.damage * 0.5); // Half dmg to bounce
+                                    if (e.hp <= 0 && e.active) {
+                                        e.active = false;
+                                        scene.remove(e.mesh);
+                                        const idx = enemies.indexOf(e);
+                                        if (idx > -1) enemies.splice(idx, 1);
+                                        t.kills++;
+                                    }
+                                    chainCount++;
+                                }
+                            }
+
+                            // Draw ZigZags
+                            const startPos = t.mesh.position.clone().add(new THREE.Vector3(0, 2.5, 0));
+                            let prevPos = startPos;
+
+                            bolts.forEach(boltTarget => {
+                                const endPos = boltTarget.mesh.position;
+
+                                // Simple Line for now (Zigzag is complex for 1 tool call)
+                                const geom = new THREE.BufferGeometry().setFromPoints([prevPos, endPos]);
+                                const mat = new THREE.LineBasicMaterial({ color: 0x00ffff });
+                                const line = new THREE.Line(geom, mat);
+                                scene.add(line);
+                                setTimeout(() => scene.remove(line), 100);
+
+                                prevPos = endPos;
+                            });
+                        }
+
+                        // Damage Logic (Main Target)
                         target.hp -= t.damage;
                         if (target.hp <= 0) {
                             target.active = false;
