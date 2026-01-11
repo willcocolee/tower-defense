@@ -1107,14 +1107,23 @@
             light.position.set(0.6, staffLength + 0.5, 0.7);
             group.add(light);
 
-            // Floating runes at level 3
-            if (level === 3) {
-                const runeGeom = new THREE.RingGeometry(0.8, 1.0, 6);
+            // Floating runes at level 3+
+            if (level >= 3) {
+                const runeScale = 1 + (level - 3) * 0.1; // Grows with level
+                const runeGeom = new THREE.RingGeometry(0.8 * runeScale, 1.0 * runeScale, 6);
                 const runeMat = new THREE.MeshBasicMaterial({ color: 0xffd700, side: THREE.DoubleSide, transparent: true, opacity: 0.6 });
                 const rune = new THREE.Mesh(runeGeom, runeMat);
                 rune.rotation.x = Math.PI / 2;
                 rune.position.set(0, 0.3, 0);
                 group.add(rune);
+
+                // Extra runes at level 5+
+                if (level >= 5) {
+                    const rune2 = rune.clone();
+                    rune2.position.y = 0.6;
+                    rune2.scale.set(0.8, 0.8, 0.8);
+                    group.add(rune2);
+                }
             }
 
             // Hitbox
@@ -1130,11 +1139,11 @@
             const group = new THREE.Group();
 
             // Materials
-            // Lvl 3 = Gold Plating
-            const metalColor = level === 3 ? 0xffd700 : 0x94a3b8;
-            const coreColor = level === 3 ? 0xa855f7 : 0x00ffff; // Purple vs Cyan core
+            // Lvl 3+ = Gold Plating
+            const metalColor = level >= 3 ? 0xffd700 : 0x94a3b8;
+            const coreColor = level >= 3 ? 0xa855f7 : 0x00ffff; // Purple vs Cyan core
 
-            const matMetal = new THREE.MeshStandardMaterial({ color: metalColor, metalness: level === 3 ? 1.0 : 0.9, roughness: 0.2 });
+            const matMetal = new THREE.MeshStandardMaterial({ color: metalColor, metalness: level >= 3 ? 1.0 : 0.9, roughness: 0.2 });
             const matCoil = new THREE.MeshStandardMaterial({ color: 0xb8c0ff, metalness: 0.8, roughness: 0.3 });
             const matEnergy = new THREE.MeshStandardMaterial({ color: coreColor, emissive: coreColor, emissiveIntensity: 2.0 + level });
 
@@ -1377,7 +1386,7 @@
                 range: range,
                 damage: selectedTower === 'sniper' ? 50 : (selectedTower === 'scout' ? 10 : (selectedTower === 'pyro' ? 8 : (selectedTower === 'tesla' ? 25 : 20))),
                 level: 1,
-                maxLevel: 3,
+                maxLevel: 10,
                 cooldown: 0,
                 maxCooldown: cooldown,
                 kills: 0
