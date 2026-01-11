@@ -45,17 +45,20 @@
         }
 
         #statsPanel {
-            position: absolute;
+            position: fixed;
             top: 20px;
             right: 20px;
-            background: rgba(30, 41, 59, 0.9);
+            background: rgba(30, 41, 59, 0.95);
             padding: 20px;
             border-radius: 8px;
             color: white;
             font-family: sans-serif;
-            border: 1px solid #475569;
+            border: 2px solid #4ade80;
             width: 200px;
+            z-index: 99999;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
             display: none;
+            /* Hidden by default */
         }
 
         .stat-row {
@@ -406,6 +409,9 @@
         const enemies = [];
         const projectiles = []; // Removed duplicate declaration
 
+        // Tower selection state
+        let selectedPlacedTower = null; // Existing tower that is selected for viewing stats
+
         // --- WAVE SYSTEM VARIABLES ---
         let wave = 1;
         let waveState = 'IDLE'; // IDLE, SPAWNING, ACTIVE, COOLDOWN
@@ -484,6 +490,30 @@
             errorDiv.textContent = msg;
             errorDiv.style.opacity = '1';
             setTimeout(() => errorDiv.style.opacity = '0', 1000);
+        }
+
+        // DEBUG TOAST (Bottom Right)
+        const debugToast = document.createElement('div');
+        debugToast.style.position = 'absolute';
+        debugToast.style.bottom = '20px';
+        debugToast.style.right = '20px';
+        debugToast.style.padding = '10px 20px';
+        debugToast.style.background = 'rgba(0,0,0,0.8)';
+        debugToast.style.color = '#4ade80';
+        debugToast.style.fontFamily = 'monospace';
+        debugToast.style.fontSize = '16px';
+        debugToast.style.borderRadius = '8px';
+        debugToast.style.pointerEvents = 'none';
+        debugToast.style.transition = 'opacity 0.3s';
+        debugToast.style.opacity = '0';
+        document.body.appendChild(debugToast);
+
+        let debugMessages = [];
+        function showDebug(msg) {
+            debugMessages.push(msg);
+            if (debugMessages.length > 10) debugMessages.shift(); // Keep last 10
+            debugToast.innerHTML = debugMessages.join('<br>');
+            debugToast.style.opacity = '1';
         }
 
         function isPointOnPath(x, z) {
@@ -701,6 +731,12 @@
             mouth.position.set(0, 2.7, 0.41);
             group.add(mouth);
 
+            // Hitbox
+            const hitbox = new THREE.Mesh(new THREE.BoxGeometry(1.5, 3.5, 1.5), new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.2 }));
+            hitbox.position.set(0, 1.75, 0);
+            hitbox.userData = { isHitbox: true };
+            group.add(hitbox);
+
             return group;
         }
 
@@ -808,6 +844,12 @@
             rifleGroup.position.set(0, 2.1, 0.5);
             group.add(rifleGroup);
 
+            // Hitbox
+            const hitbox = new THREE.Mesh(new THREE.BoxGeometry(1.5, 3.5, 1.5), new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.2 }));
+            hitbox.position.set(0, 1.75, 0);
+            hitbox.userData = { isHitbox: true };
+            group.add(hitbox);
+
             return group;
         }
 
@@ -853,16 +895,26 @@
             light.position.set(0.6, 2.7, 0.7);
             group.add(light);
 
+            // Hitbox
+            const hitbox = new THREE.Mesh(new THREE.BoxGeometry(1.5, 3.0, 1.5), new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.2 }));
+            hitbox.position.set(0, 1.5, 0);
+            hitbox.userData = { isHitbox: true };
+            group.add(hitbox);
+
             return group;
         }
 
-        function createTeslaMesh() {
+        function createTeslaMesh(level = 1) {
             const group = new THREE.Group();
 
             // Materials
-            const matMetal = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.9, roughness: 0.2 });
+            // Lvl 3 = Gold Plating
+            const metalColor = level === 3 ? 0xffd700 : 0x94a3b8;
+            const coreColor = level === 3 ? 0xa855f7 : 0x00ffff; // Purple vs Cyan core
+
+            const matMetal = new THREE.MeshStandardMaterial({ color: metalColor, metalness: level === 3 ? 1.0 : 0.9, roughness: 0.2 });
             const matCoil = new THREE.MeshStandardMaterial({ color: 0xb8c0ff, metalness: 0.8, roughness: 0.3 });
-            const matEnergy = new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x00ffff, emissiveIntensity: 2.0 });
+            const matEnergy = new THREE.MeshStandardMaterial({ color: coreColor, emissive: coreColor, emissiveIntensity: 2.0 + level });
 
             // Base platform
             const base = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.0, 0.5, 8), matMetal);
@@ -871,33 +923,43 @@
             group.add(base);
 
             // Pillar
-            const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 1.5, 8), matMetal);
-            pillar.position.set(0, 1.25, 0);
+            const height = 1.5 + ((level - 1) * 0.5); // Taller per level
+            const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, height, 8), matMetal);
+            pillar.position.set(0, 0.25 + (height / 2), 0);
             group.add(pillar);
 
             // Coils (Rings)
-            for (let i = 0; i < 3; i++) {
+            const ringCount = 2 + level; // 3, 4, 5 rings
+            for (let i = 0; i < ringCount; i++) {
                 const ring = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.08, 8, 16), matCoil);
                 ring.rotation.x = Math.PI / 2;
-                ring.position.set(0, 1.0 + (i * 0.6), 0);
+                const yPos = 0.8 + (i * (height / ringCount));
+                ring.position.set(0, yPos, 0);
                 group.add(ring);
             }
 
             // Top Orb
-            const orb = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 16), matEnergy);
-            orb.position.set(0, 2.5, 0);
+            const orb = new THREE.Mesh(new THREE.SphereGeometry(0.5 + (level * 0.1), 16, 16), matEnergy);
+            orb.position.set(0, 0.25 + height + 0.5, 0);
             group.add(orb);
 
             // Ambient glow
-            const light = new THREE.PointLight(0x00ffff, 1.5, 4);
-            light.position.set(0, 2.5, 0);
+            const light = new THREE.PointLight(coreColor, 1.5 + level, 4 + level);
+            light.position.set(0, 0.25 + height + 0.5, 0);
             group.add(light);
+
+            // Hitbox
+            const hitbox = new THREE.Mesh(new THREE.BoxGeometry(1.5, 3.5, 1.5), new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.2 }));
+            hitbox.position.set(0, 1.75, 0);
+            hitbox.userData = { isHitbox: true };
+            group.add(hitbox);
 
             return group;
         }
 
         // Stats UI Refs
         const uiPanel = document.getElementById('statsPanel');
+        uiPanel.style.display = 'none'; // Start hidden
         const uiName = document.getElementById('refName');
         const uiRange = document.getElementById('refRange');
         const uiDamage = document.getElementById('refDamage');
@@ -908,6 +970,84 @@
             uiPanel.style.display = 'none';
             selectionRing.visible = false;
         };
+
+        const btnUpgrade = document.getElementById('btnUpgrade');
+        const refLevel = document.getElementById('refLevel');
+
+        btnUpgrade.addEventListener('click', () => {
+            if (!selectedPlacedTower) return;
+            const t = selectedPlacedTower;
+
+            // Safety check for level
+            if (!t.level) t.level = 1;
+            if (!t.maxLevel) t.maxLevel = 3;
+
+            if (t.level >= t.maxLevel) {
+                showError("Max Level Reached!");
+                return;
+            }
+
+            // Upgrade Logic
+            t.level++;
+            t.damage *= 1.5; // 50% Damage boost
+            t.range += 2;    // Slight range boost
+            t.cooldown *= 0.9; // 10% Faster
+
+            // Visual Update (Re-mesh)
+            const oldPos = t.mesh.position.clone();
+            const oldRot = t.mesh.rotation.clone();
+            scene.remove(t.mesh);
+
+            let newMesh;
+            if (t.type === 'sniper') newMesh = createSniperMesh();
+            if (t.type === 'pyro') newMesh = createPyroMesh(t.level);
+            if (t.type === 'tesla') newMesh = createTeslaMesh(t.level);
+            if (t.type === 'scout') newMesh = createScoutMesh();
+            // Fallback
+            if (!newMesh) {
+                // Basic
+                const geom = new THREE.BoxGeometry(1.5, 3 + (t.level * 0.5), 1.5);
+                const mat = new THREE.MeshLambertMaterial({ color: 0x0088ff });
+                newMesh = new THREE.Mesh(geom, mat);
+            }
+
+            newMesh.position.copy(oldPos);
+            // newMesh.rotation.copy(oldRot); // Let lookAt logic handle rotation
+
+            newMesh.castShadow = true;
+            newMesh.receiveShadow = true;
+            scene.add(newMesh);
+            t.mesh = newMesh;
+
+            // UI Update
+            refLevel.textContent = t.level;
+            refDamage.textContent = Math.round(t.damage);
+            refRange.textContent = t.range;
+            refSpeed.textContent = (300 / t.maxCooldown).toFixed(1);
+
+            if (t.level >= t.maxLevel) {
+                btnUpgrade.textContent = "MAX LEVEL";
+                btnUpgrade.style.background = "#555";
+            }
+
+            showError(`Upgraded to Level ${t.level}!`);
+        });
+
+        // Loop to update UI if selection changes (e.g. if we click another tower)
+        function updateStatsUI() {
+            if (selectedPlacedTower) {
+                const t = selectedPlacedTower;
+                refLevel.textContent = t.level || 1;
+                if (t.level >= t.maxLevel) {
+                    btnUpgrade.textContent = "MAX LEVEL";
+                    btnUpgrade.style.background = "#555";
+                } else {
+                    btnUpgrade.textContent = "UPGRADE";
+                    btnUpgrade.style.background = "#eab308";
+                }
+            }
+        }
+        setInterval(updateStatsUI, 200);
 
         // let ghostRing = ... (Removed duplicate)
 
@@ -1009,17 +1149,33 @@
             mesh.receiveShadow = true;
             scene.add(mesh);
 
-            towers.push({
+            const entry = {
                 mesh: mesh,
                 type: selectedTower,
                 range: range,
-                type: selectedTower,
-                range: range,
                 damage: selectedTower === 'sniper' ? 50 : (selectedTower === 'scout' ? 10 : (selectedTower === 'pyro' ? 2 : (selectedTower === 'tesla' ? 25 : 20))),
+                level: 1,
+                maxLevel: 3,
                 cooldown: 0,
                 maxCooldown: cooldown,
                 kills: 0
+            };
+            towers.push(entry);
+
+            // Link Hitbox for Raycasting
+            mesh.traverse(child => {
+                if (child.userData.isHitbox) {
+                    child.userData.linkedTower = entry;
+                }
             });
+
+            // AUTO-UNEQUIP after valid placement
+            selectedTower = null;
+            ghostRing.visible = false;
+
+            // Reset UI buttons
+            const buttons = [btnBasic, btnSniper, btnScout, btnPyro, btnTesla];
+            buttons.forEach(b => b.style.borderColor = '#555');
         }
 
         // Raycaster for clicks
@@ -1027,7 +1183,17 @@
         const mouse = new THREE.Vector2();
 
         // Prevent context menu
-        window.addEventListener('contextmenu', e => e.preventDefault());
+        // Prevent context menu (Right Click) & Cancel Build
+        window.addEventListener('contextmenu', e => {
+            e.preventDefault();
+            if (selectedTower) {
+                selectedTower = null;
+                ghostRing.visible = false;
+                // Reset UI
+                const buttons = [btnBasic, btnSniper, btnScout, btnPyro, btnTesla];
+                buttons.forEach(b => b.style.borderColor = '#555');
+            }
+        });
 
         let isDragging = false;
         let mouseDownPos = new THREE.Vector2();
@@ -1075,33 +1241,81 @@
             raycaster.setFromCamera(mouse, camera);
 
             // 1. Check if clicked on EXISTING TOWER (Mesh check)
-            // We need to check all towers meshes
-            const towerMeshes = towers.map(t => t.mesh);
-            // Note: Scouts are Groups, raycaster checks children. 
-            // We'll traverse towers and collect all children for raycast? Or just intersectObject recursive
-
-            // Simpler: Just raycast EVERYTHING in scene logic 
-            const allIntersects = raycaster.intersectObjects(scene.children, true);
-
-            // Find first tower hit
+            // ONLY if NOT building (selectedTower is null)
             let hitTower = null;
-            for (let i = 0; i < allIntersects.length; i++) {
-                const obj = allIntersects[i].object;
-                // Find parent tower object
-                const towerObj = towers.find(t => t.mesh === obj || t.mesh === obj.parent || (obj.parent && t.mesh === obj.parent.parent));
-                if (towerObj) {
-                    hitTower = towerObj;
-                    break;
+
+            if (!selectedTower) {
+                // Raycast against scene
+                const allIntersects = raycaster.intersectObjects(scene.children, true);
+
+                // Find first tower hit
+                for (let i = 0; i < allIntersects.length; i++) {
+                    const obj = allIntersects[i].object;
+
+                    // Check if it's a hitbox
+                    if (obj.userData.isHitbox) {
+                        showDebug("HITBOX CLICKED");
+
+                        // Try explicit link first
+                        if (obj.userData.linkedTower) {
+                            hitTower = obj.userData.linkedTower;
+                            showDebug("TOWER FOUND (LINK)");
+                            break;
+                        }
+
+                        // Traverse UP to find tower mesh (hitbox -> group -> might be tower)
+                        let searchParent = obj.parent;
+                        while (searchParent) {
+                            const found = towers.find(t => t.mesh === searchParent);
+                            if (found) {
+                                hitTower = found;
+                                showDebug("TOWER FOUND (PARENT SEARCH)");
+                                break;
+                            }
+                            searchParent = searchParent.parent;
+                            if (searchParent === scene) break;
+                        }
+
+                        if (hitTower) break;
+                        showDebug("NO TOWER DATA - CHECK LINKAGE");
+                        continue; // Skip non-hitbox fallback for this object
+                    }
+
+                    // Fallback: non-hitbox parts of tower
+                    let current = obj;
+                    while (current) {
+                        const towerObj = towers.find(t => t.mesh === current);
+                        if (towerObj) {
+                            hitTower = towerObj;
+                            showDebug("TOWER FOUND (MESH SEARCH)");
+                            break;
+                        }
+                        current = current.parent;
+                        if (current === scene) break;
+                    }
+                    if (hitTower) break;
                 }
             }
 
             if (hitTower) {
+                showDebug("OPENING UI...");
+                showDebug("Step 1: Set selectedPlacedTower");
                 // SELECT TOWER
                 selectedPlacedTower = hitTower;
+                showDebug("Step 2: Clear selectedTower");
                 selectedTower = null; // Exit placement mode checks
+                showDebug("Step 3: About to set panel style");
 
-                // Show Stats
+                // Show Stats - FORCED
                 uiPanel.style.display = 'block';
+                showDebug("Step 4: display=block done");
+                uiPanel.style.visibility = 'visible';
+                showDebug("Step 5: visibility=visible done");
+                uiPanel.style.opacity = '1';
+                showDebug("Step 6: opacity=1 done");
+
+                showDebug("PANEL SHOULD BE VISIBLE NOW");
+
                 uiName.textContent = hitTower.type.toUpperCase();
                 uiRange.textContent = hitTower.range;
                 uiSpeed.textContent = hitTower.maxCooldown * (1000 / 60) + "ms"; // approx
@@ -1135,7 +1349,7 @@
             } else {
                 // Clicked empty space: Deselect
                 selectedPlacedTower = null;
-                uiPanel.style.display = 'none';
+                // uiPanel.style.display = 'none'; // DEBUG: Commented out to see if this is checking
                 selectionRing.visible = false;
             }
         });
