@@ -732,7 +732,7 @@
             group.add(mouth);
 
             // Hitbox
-            const hitbox = new THREE.Mesh(new THREE.BoxGeometry(1.5, 3.5, 1.5), new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.2 }));
+            const hitbox = new THREE.Mesh(new THREE.BoxGeometry(1.5, 3.5, 1.5), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
             hitbox.position.set(0, 1.75, 0);
             hitbox.userData = { isHitbox: true };
             group.add(hitbox);
@@ -845,7 +845,7 @@
             group.add(rifleGroup);
 
             // Hitbox
-            const hitbox = new THREE.Mesh(new THREE.BoxGeometry(1.5, 3.5, 1.5), new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.2 }));
+            const hitbox = new THREE.Mesh(new THREE.BoxGeometry(1.5, 3.5, 1.5), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
             hitbox.position.set(0, 1.75, 0);
             hitbox.userData = { isHitbox: true };
             group.add(hitbox);
@@ -853,50 +853,100 @@
             return group;
         }
 
-        function createPyroMesh() {
+        function createPyroMesh(level = 1) {
             const group = new THREE.Group();
 
-            // Materials
-            const matRobe = new THREE.MeshStandardMaterial({ color: 0x7c2d12, roughness: 0.9 }); // Dark Red
-            const matTrim = new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.6, emissive: 0xf97316, emissiveIntensity: 0.2 }); // Orange glow
-            const matSkin = new THREE.MeshStandardMaterial({ color: 0xfca5a5, roughness: 0.8 });
-            const matStaff = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 1.0 }); // Wood
-            const matFire = new THREE.MeshStandardMaterial({ color: 0xff4400, emissive: 0xff5500, emissiveIntensity: 2.0, transparent: true, opacity: 0.8 });
+            // Level-based colors
+            // Lvl 1: Dark red robe, orange fire
+            // Lvl 2: Purple robe, blue fire, shoulder pads
+            // Lvl 3: Black robe with gold trim, white-hot fire, floating runes
 
-            // Robe Body
-            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.6, 1.8, 8), matRobe);
-            body.position.set(0, 0.9, 0);
+            const robeColor = level === 3 ? 0x1a1a2e : (level === 2 ? 0x4a1942 : 0x7c2d12);
+            const fireColor = level === 3 ? 0xffffff : (level === 2 ? 0x3b82f6 : 0xff4400);
+            const fireEmissive = level === 3 ? 0xffffaa : (level === 2 ? 0x60a5fa : 0xff5500);
+            const trimColor = level === 3 ? 0xffd700 : (level === 2 ? 0xa855f7 : 0xf97316);
+
+            const matRobe = new THREE.MeshStandardMaterial({ color: robeColor, roughness: 0.9 });
+            const matTrim = new THREE.MeshStandardMaterial({ color: trimColor, roughness: 0.6, emissive: trimColor, emissiveIntensity: 0.3 * level });
+            const matSkin = new THREE.MeshStandardMaterial({ color: 0xfca5a5, roughness: 0.8 });
+            const matStaff = new THREE.MeshStandardMaterial({ color: level === 3 ? 0x8b5a2b : 0x451a03, roughness: 1.0 });
+            const matFire = new THREE.MeshStandardMaterial({ color: fireColor, emissive: fireEmissive, emissiveIntensity: 2.0 + level, transparent: true, opacity: 0.9 });
+
+            // Robe Body - taller at higher levels
+            const robeHeight = 1.8 + (level * 0.2);
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.6, robeHeight, 8), matRobe);
+            body.position.set(0, robeHeight / 2, 0);
             body.castShadow = true;
             group.add(body);
 
+            // Trim at bottom of robe
+            const trimRing = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.08, 8, 16), matTrim);
+            trimRing.rotation.x = Math.PI / 2;
+            trimRing.position.set(0, 0.1, 0);
+            group.add(trimRing);
+
             // Head (Hooded)
             const hood = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.7), matRobe);
-            hood.position.set(0, 2.1, 0);
+            hood.position.set(0, robeHeight + 0.3, 0);
             hood.castShadow = true;
             group.add(hood);
 
             const face = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), matSkin);
-            face.position.set(0, 2.1, 0.15); // Peek out
+            face.position.set(0, robeHeight + 0.3, 0.15);
             group.add(face);
 
-            // Staff
-            const staffHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.5), matStaff);
-            staffHandle.position.set(0.6, 1.5, 0.5);
+            // Shoulder pads at level 2+
+            if (level >= 2) {
+                const shoulderL = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 8), matTrim);
+                shoulderL.position.set(-0.5, robeHeight - 0.2, 0);
+                group.add(shoulderL);
+
+                const shoulderR = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 8), matTrim);
+                shoulderR.position.set(0.5, robeHeight - 0.2, 0);
+                group.add(shoulderR);
+            }
+
+            // Staff - more ornate at higher levels
+            const staffLength = 2.5 + (level * 0.3);
+            const staffHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, staffLength), matStaff);
+            staffHandle.position.set(0.6, staffLength / 2 + 0.3, 0.5);
             staffHandle.rotation.x = 0.2;
             group.add(staffHandle);
 
-            // Orb on staff
-            const orb = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 8), matFire);
-            orb.position.set(0.6, 2.7, 0.7);
+            // Orb on staff - bigger with level
+            const orbSize = 0.25 + (level * 0.1);
+            const orb = new THREE.Mesh(new THREE.SphereGeometry(orbSize, 16, 16), matFire);
+            orb.position.set(0.6, staffLength + 0.5, 0.7);
             group.add(orb);
 
-            // Light from staff
-            const light = new THREE.PointLight(0xff5500, 2, 5);
-            light.position.set(0.6, 2.7, 0.7);
+            // Multiple orbs at level 3
+            if (level === 3) {
+                const orb2 = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 8), matFire);
+                orb2.position.set(0.3, staffLength + 0.3, 0.5);
+                group.add(orb2);
+
+                const orb3 = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 8), matFire);
+                orb3.position.set(0.9, staffLength + 0.3, 0.5);
+                group.add(orb3);
+            }
+
+            // Light from staff - brighter with level
+            const light = new THREE.PointLight(fireEmissive, 2 + level, 5 + level * 2);
+            light.position.set(0.6, staffLength + 0.5, 0.7);
             group.add(light);
 
+            // Floating runes at level 3
+            if (level === 3) {
+                const runeGeom = new THREE.RingGeometry(0.8, 1.0, 6);
+                const runeMat = new THREE.MeshBasicMaterial({ color: 0xffd700, side: THREE.DoubleSide, transparent: true, opacity: 0.6 });
+                const rune = new THREE.Mesh(runeGeom, runeMat);
+                rune.rotation.x = Math.PI / 2;
+                rune.position.set(0, 0.3, 0);
+                group.add(rune);
+            }
+
             // Hitbox
-            const hitbox = new THREE.Mesh(new THREE.BoxGeometry(1.5, 3.0, 1.5), new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.2 }));
+            const hitbox = new THREE.Mesh(new THREE.BoxGeometry(1.5, 3.0, 1.5), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
             hitbox.position.set(0, 1.5, 0);
             hitbox.userData = { isHitbox: true };
             group.add(hitbox);
@@ -949,7 +999,7 @@
             group.add(light);
 
             // Hitbox
-            const hitbox = new THREE.Mesh(new THREE.BoxGeometry(1.5, 3.5, 1.5), new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.2 }));
+            const hitbox = new THREE.Mesh(new THREE.BoxGeometry(1.5, 3.5, 1.5), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
             hitbox.position.set(0, 1.75, 0);
             hitbox.userData = { isHitbox: true };
             group.add(hitbox);
