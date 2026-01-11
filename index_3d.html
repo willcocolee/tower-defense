@@ -1203,7 +1203,7 @@
                 mesh: mesh,
                 type: selectedTower,
                 range: range,
-                damage: selectedTower === 'sniper' ? 50 : (selectedTower === 'scout' ? 10 : (selectedTower === 'pyro' ? 2 : (selectedTower === 'tesla' ? 25 : 20))),
+                damage: selectedTower === 'sniper' ? 50 : (selectedTower === 'scout' ? 10 : (selectedTower === 'pyro' ? 8 : (selectedTower === 'tesla' ? 25 : 20))),
                 level: 1,
                 maxLevel: 3,
                 cooldown: 0,
@@ -1572,7 +1572,8 @@
                             // Level 1: 2 extra (3 total)
                             // Level 2: 3 extra (4 total)
                             // Level 3: 4 extra (5 total)
-                            const chainLimit = 1 + t.level;
+                            const chainLimit = 1 + (t.level || 1);
+                            const chainRange = 8; // Units to chain lightning
                             let chainCount = 0;
                             for (const e of enemies) {
                                 if (chainCount >= chainLimit) break;
