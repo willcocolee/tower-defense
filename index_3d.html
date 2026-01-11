@@ -421,34 +421,124 @@
         const TIME_BETWEEN_SPAWNS = 40; // ~0.7s
         const TIME_BETWEEN_WAVES = 300; // ~5s
 
-        // --- LOGIC ---
+        // --- ENEMY TYPES ---
+        const ENEMY_TYPES = {
+            normal: { name: 'Normal', hpMult: 1.0, speedMult: 1.0, size: 0.6, color: 0xff4444 },
+            speedster: { name: 'Speedster', hpMult: 0.6, speedMult: 2.0, size: 0.4, color: 0x00ff00 },
+            giant: { name: 'Giant', hpMult: 3.0, speedMult: 0.5, size: 1.2, color: 0x8b4513 },
+            boss: { name: 'BOSS', hpMult: 15.0, speedMult: 0.3, size: 2.0, color: 0xff00ff }
+        };
 
-        function spawnEnemy(hpOverride) {
-            const geom = new THREE.SphereGeometry(0.6, 16, 16);
-            // Color shift based on wave strength (Red -> Purple)
-            const hue = Math.max(0, 0.0 + (wave * 0.05));
-            const color = new THREE.Color().setHSL(hue > 1 ? 0 : (1 - hue), 1, 0.5);
+        // --- MUTATIONS ---
+        const MUTATIONS = {
+            none: { name: '', effect: null },
+            loaded: { name: 'Loaded', damageReduction: 0.5, color: 0x808080 }, // 50% damage reduction
+            nimble: { name: 'Nimble', speedMult: 2.0, color: 0x00ffff },
+            regen: { name: 'Regen', regenRate: 5, color: 0x00ff00 }, // HP per second
+            flying: { name: 'Flying', isFlying: true, color: 0xffff00, height: 3.0 }
+        };
 
-            const mat = new THREE.MeshLambertMaterial({ color: color });
+        function spawnEnemy(typeOverride, mutationOverride) {
+            // Determine enemy type
+            let type = typeOverride || 'normal';
+
+            // Random type selection if not overridden
+            if (!typeOverride) {
+                const roll = Math.random();
+                if (roll < 0.15) type = 'speedster';
+                else if (roll < 0.25) type = 'giant';
+            }
+
+            const typeData = ENEMY_TYPES[type];
+
+            // Determine mutation (chance increases with wave)
+            let mutation = mutationOverride || 'none';
+            if (!mutationOverride && wave >= 3) {
+                const mutationChance = Math.min(0.4, 0.05 * wave);
+                if (Math.random() < mutationChance) {
+                    const mutations = ['loaded', 'nimble', 'regen'];
+                    if (wave >= 5) mutations.push('flying');
+                    mutation = mutations[Math.floor(Math.random() * mutations.length)];
+                }
+            }
+            const mutData = MUTATIONS[mutation];
+
+            // Create mesh
+            const geom = new THREE.SphereGeometry(typeData.size, 16, 16);
+
+            // Color based on type, tinted by mutation
+            let baseColor = new THREE.Color(typeData.color);
+            if (mutation !== 'none') {
+                baseColor.lerp(new THREE.Color(mutData.color), 0.4);
+            }
+
+            const mat = new THREE.MeshLambertMaterial({ color: baseColor });
             const mesh = new THREE.Mesh(geom, mat);
 
             const start = pathNodes[0];
             mesh.position.copy(start);
-            mesh.position.y = 0.6;
+            mesh.position.y = typeData.size + (mutData.isFlying ? mutData.height : 0);
+
+            // Add visual indicators for mutations
+            if (mutation === 'flying') {
+                // Add wings
+                const wingMat = new THREE.MeshBasicMaterial({ color: 0xffff00, side: THREE.DoubleSide, transparent: true, opacity: 0.6 });
+                const wingL = new THREE.Mesh(new THREE.PlaneGeometry(typeData.size * 1.5, typeData.size * 0.8), wingMat);
+                wingL.position.set(-typeData.size * 0.8, 0, 0);
+                wingL.rotation.y = Math.PI / 4;
+                mesh.add(wingL);
+                const wingR = new THREE.Mesh(new THREE.PlaneGeometry(typeData.size * 1.5, typeData.size * 0.8), wingMat);
+                wingR.position.set(typeData.size * 0.8, 0, 0);
+                wingR.rotation.y = -Math.PI / 4;
+                mesh.add(wingR);
+            }
+
+            if (mutation === 'loaded') {
+                // Add armor plates
+                const armorMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
+                const armor = new THREE.Mesh(new THREE.BoxGeometry(typeData.size * 1.2, typeData.size * 0.3, typeData.size * 1.2), armorMat);
+                armor.position.set(0, typeData.size * 0.5, 0);
+                mesh.add(armor);
+            }
+
+            if (mutation === 'regen') {
+                // Add green glow
+                const glowMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.3 });
+                const glow = new THREE.Mesh(new THREE.SphereGeometry(typeData.size * 1.3, 8, 8), glowMat);
+                mesh.add(glow);
+            }
 
             scene.add(mesh);
 
-            // Scale HP with Wave
-            const hp = hpOverride || (100 + (wave * 25));
+            // Calculate HP (buffed base HP)
+            const baseHp = 200 + (wave * 50); // Increased from 100 + wave*25
+            const hp = Math.floor(baseHp * typeData.hpMult);
+
+            // Calculate speed
+            let speed = (0.06 + (wave * 0.003)) * typeData.speedMult;
+            if (mutData.speedMult) speed *= mutData.speedMult;
 
             enemies.push({
                 mesh: mesh,
                 nodeIndex: 0,
                 hp: hp,
                 maxHp: hp,
-                speed: 0.05 + (wave * 0.005), // Get slightly faster
-                active: true
+                speed: speed,
+                active: true,
+                type: type,
+                typeName: typeData.name,
+                mutation: mutation,
+                mutationName: mutData.name || '',
+                damageReduction: mutData.damageReduction || 0,
+                regenRate: mutData.regenRate || 0,
+                isFlying: mutData.isFlying || false,
+                baseY: typeData.size + (mutData.isFlying ? mutData.height : 0)
             });
+        }
+
+        function spawnBoss() {
+            spawnEnemy('boss', 'none');
+            showError('⚠️ BOSS INCOMING! ⚠️');
         }
 
         const btnStartWave = document.getElementById('btnStartWave');
@@ -465,9 +555,17 @@
             waveState = 'SPAWNING';
             // Wave Logic: 5 + Wave Index enemies
             enemiesToSpawn = 5 + Math.floor(wave * 1.5);
+
+            // Boss wave every 10 waves
+            if (wave % 10 === 0) {
+                spawnBoss();
+                showError(`⚠️ BOSS WAVE ${wave}! ⚠️`);
+            } else {
+                showError(`Wave ${wave} Started!`);
+            }
+
             spawnTimer = 0;
             waveDisplay.textContent = wave;
-            showError(`Wave ${wave} Started!`);
         }
 
         // Create a small UI for errors
@@ -651,16 +749,25 @@
         }
 
         // Procedural Mesh Generators
-        function createScoutMesh() {
+        function createScoutMesh(level = 1) {
             const group = new THREE.Group();
 
-            // Materials
-            const matSkin = new THREE.MeshLambertMaterial({ color: 0xfacc15 }); // Yellow
-            const matShirt = new THREE.MeshLambertMaterial({ color: 0x3b82f6 }); // Blue
-            const matPants = new THREE.MeshLambertMaterial({ color: 0x1e293b }); // Dark Grey
-            const matGun = new THREE.MeshLambertMaterial({ color: 0x94a3b8 }); // Grey
+            // Level-based colors
+            // Lvl 1: Yellow/Blue casual
+            // Lvl 2: Green tactical, helmet
+            // Lvl 3: Gold elite, dual pistols, cape
 
-            // Legs (combined for simplicity or split)
+            const skinColor = level === 3 ? 0xffd700 : (level === 2 ? 0x90ee90 : 0xfacc15);
+            const shirtColor = level === 3 ? 0x1a1a2e : (level === 2 ? 0x22543d : 0x3b82f6);
+            const pantsColor = level === 3 ? 0x2d2d44 : (level === 2 ? 0x1e3a2f : 0x1e293b);
+            const gunColor = level === 3 ? 0xffd700 : (level === 2 ? 0x2f4f4f : 0x94a3b8);
+
+            const matSkin = new THREE.MeshLambertMaterial({ color: skinColor });
+            const matShirt = new THREE.MeshLambertMaterial({ color: shirtColor });
+            const matPants = new THREE.MeshLambertMaterial({ color: pantsColor });
+            const matGun = new THREE.MeshLambertMaterial({ color: gunColor });
+
+            // Legs
             const LegL = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.2, 0.5), matPants);
             LegL.position.set(-0.3, 0.6, 0);
             LegL.castShadow = true;
@@ -671,8 +778,9 @@
             LegR.castShadow = true;
             group.add(LegR);
 
-            // Torso
-            const torso = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 0.6), matShirt);
+            // Torso - bulkier at higher levels
+            const torsoWidth = 1.2 + (level * 0.1);
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(torsoWidth, 1.2, 0.6), matShirt);
             torso.position.set(0, 1.8, 0);
             torso.castShadow = true;
             group.add(torso);
@@ -683,13 +791,25 @@
             head.castShadow = true;
             group.add(head);
 
-            // Cap
-            const cap = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.2, 0.85), matShirt);
-            cap.position.set(0, 3.25, 0);
-            group.add(cap);
+            // Helmet at level 2+
+            if (level >= 2) {
+                const helmet = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.4, 0.9), matShirt);
+                helmet.position.set(0, 3.15, 0);
+                group.add(helmet);
+
+                // Visor
+                const visorMat = new THREE.MeshBasicMaterial({ color: level === 3 ? 0xff4400 : 0x00ff00 });
+                const visor = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.15, 0.1), visorMat);
+                visor.position.set(0, 2.95, 0.41);
+                group.add(visor);
+            } else {
+                // Cap at level 1
+                const cap = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.2, 0.85), matShirt);
+                cap.position.set(0, 3.25, 0);
+                group.add(cap);
+            }
 
             // Arms
-            // Left Arm (Down)
             const ArmL = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.0, 0.4), matShirt);
             ArmL.position.set(-0.8, 1.8, 0);
             group.add(ArmL);
@@ -697,16 +817,15 @@
             HandL.position.set(-0.8, 1.1, 0);
             group.add(HandL);
 
-            // Right Arm (Raised aiming gun)
             const ArmR = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.0, 0.4), matShirt);
             ArmR.position.set(0.8, 1.8, 0.2);
-            ArmR.rotation.x = -Math.PI / 2; // Point forward
+            ArmR.rotation.x = -Math.PI / 2;
             group.add(ArmR);
             const HandR = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), matSkin);
-            HandR.position.set(0.8, 1.8, 0.9); // End of arm
+            HandR.position.set(0.8, 1.8, 0.9);
             group.add(HandR);
 
-            // Pistol
+            // Pistol (Right hand)
             const gunMain = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 0.8), matGun);
             gunMain.position.set(0.8, 2.0, 1.2);
             group.add(gunMain);
@@ -714,19 +833,30 @@
             gunHandle.position.set(0.8, 1.7, 0.9);
             group.add(gunHandle);
 
+            // Dual pistols at level 3
+            if (level === 3) {
+                const gun2Main = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 0.8), matGun);
+                gun2Main.position.set(-0.8, 1.3, 0.4);
+                group.add(gun2Main);
+            }
+
+            // Cape at level 3
+            if (level === 3) {
+                const capeMat = new THREE.MeshLambertMaterial({ color: 0x8b0000, side: THREE.DoubleSide });
+                const cape = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 1.5), capeMat);
+                cape.position.set(0, 1.5, -0.35);
+                cape.rotation.x = 0.2;
+                group.add(cape);
+            }
+
             // Face
             const matBlack = new THREE.MeshBasicMaterial({ color: 0x000000 });
-
-            // Eyes
             const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.05), matBlack);
-            eyeL.position.set(-0.2, 2.9, 0.41); // Front of face
+            eyeL.position.set(-0.2, 2.9, 0.41);
             group.add(eyeL);
-
             const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.05), matBlack);
             eyeR.position.set(0.2, 2.9, 0.41);
             group.add(eyeR);
-
-            // Mouth (Smile)
             const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.05, 0.05), matBlack);
             mouth.position.set(0, 2.7, 0.41);
             group.add(mouth);
@@ -740,18 +870,27 @@
             return group;
         }
 
-        function createSniperMesh() {
+        function createSniperMesh(level = 1) {
             const group = new THREE.Group();
 
-            // Materials
-            const matSkin = new THREE.MeshLambertMaterial({ color: 0xffdcb1 }); // Light Skin
-            const matClothesDark = new THREE.MeshLambertMaterial({ color: 0x334155 }); // Dark Blue/Grey
-            const matClothesLight = new THREE.MeshLambertMaterial({ color: 0x64748b }); // Lighter Grey padding
-            const matBlack = new THREE.MeshLambertMaterial({ color: 0x111111 });
-            const matGunBody = new THREE.MeshLambertMaterial({ color: 0x94a3b8 }); // Silver/Grey
-            const matGlass = new THREE.MeshLambertMaterial({ color: 0xf59e0b }); // Orange/Gold
+            // Level-based colors
+            // Lvl 1: Standard tactical grey
+            // Lvl 2: Desert camo tan, larger scope
+            // Lvl 3: Arctic white with gold trim, energy rifle
 
-            // Legs (Wide Stance)
+            const clothesDarkColor = level === 3 ? 0xf0f0f0 : (level === 2 ? 0x8b7355 : 0x334155);
+            const clothesLightColor = level === 3 ? 0xffffff : (level === 2 ? 0xd2b48c : 0x64748b);
+            const gunBodyColor = level === 3 ? 0xffd700 : (level === 2 ? 0x654321 : 0x94a3b8);
+            const glassColor = level === 3 ? 0xff0000 : (level === 2 ? 0x00ff00 : 0xf59e0b);
+
+            const matSkin = new THREE.MeshLambertMaterial({ color: 0xffdcb1 });
+            const matClothesDark = new THREE.MeshLambertMaterial({ color: clothesDarkColor });
+            const matClothesLight = new THREE.MeshLambertMaterial({ color: clothesLightColor });
+            const matBlack = new THREE.MeshLambertMaterial({ color: 0x111111 });
+            const matGunBody = new THREE.MeshLambertMaterial({ color: gunBodyColor });
+            const matGlass = new THREE.MeshLambertMaterial({ color: glassColor });
+
+            // Legs
             const LegL = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.2, 0.6), matClothesDark);
             LegL.position.set(-0.4, 0.6, 0);
             LegL.castShadow = true;
@@ -768,13 +907,21 @@
             torso.castShadow = true;
             group.add(torso);
 
+            // Armor vest at level 2+
+            if (level >= 2) {
+                const vestMat = new THREE.MeshLambertMaterial({ color: level === 3 ? 0xffd700 : 0x556b2f });
+                const vest = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.8, 0.5), vestMat);
+                vest.position.set(0, 1.9, 0.15);
+                group.add(vest);
+            }
+
             // Head
             const head = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.9, 0.9), matSkin);
             head.position.set(0, 2.85, 0);
             head.castShadow = true;
             group.add(head);
 
-            // Cap (Backwards/Tactical)
+            // Cap
             const cap = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.3, 1.0), matClothesDark);
             cap.position.set(0, 3.3, 0);
             group.add(cap);
@@ -787,23 +934,21 @@
             phoneR.position.set(0.5, 2.85, 0);
             group.add(phoneR);
             const phoneBand = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.1, 0.2), matBlack);
-            phoneBand.position.set(0, 3.35, 0); // On top of cap
+            phoneBand.position.set(0, 3.35, 0);
             group.add(phoneBand);
 
-            // Sunglasses (Visor)
+            // Sunglasses
             const glasses = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.25, 0.1), matGlass);
             glasses.position.set(0, 2.9, 0.46);
             group.add(glasses);
 
-            // Arms (Holding Rifle)
-            // Left Arm (Supporting barrel)
+            // Arms
             const ArmL = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.2, 0.4), matClothesLight);
             ArmL.position.set(-0.6, 2.0, 0.6);
-            ArmL.rotation.x = -Math.PI / 2; // Point forward
-            ArmL.rotation.z = -0.2; // Angle in
+            ArmL.rotation.x = -Math.PI / 2;
+            ArmL.rotation.z = -0.2;
             group.add(ArmL);
 
-            // Right Arm (Trigger)
             const ArmR = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.2, 0.4), matClothesLight);
             ArmR.position.set(0.6, 2.0, 0.4);
             ArmR.rotation.x = -Math.PI / 2;
@@ -813,36 +958,63 @@
             // --- RIFLE ---
             const rifleGroup = new THREE.Group();
 
-            // Main Body
-            const body = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.4, 1.5), matGunBody);
+            // Main Body - longer at higher levels
+            const rifleLength = 1.5 + (level * 0.3);
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.4, rifleLength), matGunBody);
             body.position.set(0, 0, 0);
             rifleGroup.add(body);
 
-            // Barrel (Long)
-            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2.5, 8), matBlack);
+            // Barrel
+            const barrelLength = 2.5 + (level * 0.5);
+            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, barrelLength, 8), matBlack);
             barrel.rotation.x = Math.PI / 2;
-            barrel.position.set(0, 0.1, 2.0);
+            barrel.position.set(0, 0.1, rifleLength / 2 + barrelLength / 2);
             rifleGroup.add(barrel);
 
             // Muzzle Brake
             const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.4), matBlack);
-            muzzle.position.set(0, 0.1, 3.3);
+            muzzle.position.set(0, 0.1, rifleLength / 2 + barrelLength + 0.2);
             rifleGroup.add(muzzle);
 
-            // Scope
-            const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 0.8, 16), matBlack);
+            // Scope - bigger at higher levels
+            const scopeSize = 0.12 + (level * 0.03);
+            const scopeLength = 0.8 + (level * 0.2);
+            const scope = new THREE.Mesh(new THREE.CylinderGeometry(scopeSize, scopeSize + 0.03, scopeLength, 16), matBlack);
             scope.rotation.x = Math.PI / 2;
             scope.position.set(0, 0.4, 0.2);
             rifleGroup.add(scope);
 
+            // Scope glow at level 3
+            if (level === 3) {
+                const scopeGlowMat = new THREE.MeshBasicMaterial({ color: 0xff0000, emissive: 0xff0000 });
+                const scopeGlow = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), scopeGlowMat);
+                scopeGlow.position.set(0, 0.4, 0.7);
+                rifleGroup.add(scopeGlow);
+            }
+
             // Stock
             const stock = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 0.8), matBlack);
-            stock.position.set(0, -0.1, -1.0);
+            stock.position.set(0, -0.1, -rifleLength / 2 - 0.4);
             rifleGroup.add(stock);
 
-            // Position Rifle in hands
+            // Position Rifle
             rifleGroup.position.set(0, 2.1, 0.5);
             group.add(rifleGroup);
+
+            // Ghillie suit at level 3
+            if (level === 3) {
+                const ghillieMat = new THREE.MeshLambertMaterial({ color: 0x228b22, side: THREE.DoubleSide });
+                for (let i = 0; i < 8; i++) {
+                    const strand = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.6), ghillieMat);
+                    strand.position.set(
+                        (Math.random() - 0.5) * 1.2,
+                        1.5 + Math.random() * 1.0,
+                        -0.4
+                    );
+                    strand.rotation.y = Math.random() * Math.PI;
+                    group.add(strand);
+                }
+            }
 
             // Hitbox
             const hitbox = new THREE.Mesh(new THREE.BoxGeometry(1.5, 3.5, 1.5), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
@@ -1447,6 +1619,11 @@
                 const enemy = enemies[i];
                 if (!enemy.active) continue;
 
+                // Regeneration mutation
+                if (enemy.regenRate && enemy.hp < enemy.maxHp) {
+                    enemy.hp = Math.min(enemy.maxHp, enemy.hp + enemy.regenRate / 60); // Per frame
+                }
+
                 // Move towards next node
                 const target = pathNodes[enemy.nodeIndex + 1];
                 if (!target) {
@@ -1459,7 +1636,8 @@
                 }
 
                 const dir = new THREE.Vector3().subVectors(target, enemy.mesh.position).normalize();
-                const dist = enemy.mesh.position.distanceTo(target);
+                dir.y = 0; // Keep horizontal movement only
+                const dist = enemy.mesh.position.distanceTo(new THREE.Vector3(target.x, enemy.mesh.position.y, target.z));
 
                 if (dist < 0.2) {
                     enemy.nodeIndex++;
@@ -1470,6 +1648,11 @@
                     }
                 } else {
                     enemy.mesh.position.add(dir.multiplyScalar(enemy.speed));
+                }
+
+                // Maintain flying height
+                if (enemy.isFlying) {
+                    enemy.mesh.position.y = enemy.baseY;
                 }
             }
 
@@ -1512,6 +1695,9 @@
                     let minDist = t.range;
 
                     for (const e of enemies) {
+                        // Flying enemies can only be hit by Tesla towers
+                        if (e.isFlying && t.type !== 'tesla') continue;
+
                         const dist = t.mesh.position.distanceTo(e.mesh.position);
                         if (dist < minDist) {
                             minDist = dist;
@@ -1612,7 +1798,12 @@
                         }
 
                         // Damage Logic (Main Target)
-                        target.hp -= t.damage;
+                        // Apply damage reduction for Loaded mutation
+                        let finalDamage = t.damage;
+                        if (target.damageReduction) {
+                            finalDamage = t.damage * (1 - target.damageReduction);
+                        }
+                        target.hp -= finalDamage;
                         if (target.hp <= 0) {
                             target.active = false;
                             scene.remove(target.mesh);
