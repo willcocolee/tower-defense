@@ -426,8 +426,21 @@
             normal: { name: 'Normal', hpMult: 1.0, speedMult: 1.0, size: 0.6, color: 0xff4444 },
             speedster: { name: 'Speedster', hpMult: 0.6, speedMult: 2.0, size: 0.4, color: 0x00ff00 },
             giant: { name: 'Giant', hpMult: 3.0, speedMult: 0.5, size: 1.2, color: 0x8b4513 },
-            boss: { name: 'BOSS', hpMult: 15.0, speedMult: 0.3, size: 2.0, color: 0xff00ff }
+            boss: { name: 'BOSS', hpMult: 15.0, speedMult: 0.3, size: 2.0, color: 0xff00ff },
+            // Molten variants (Wave 25+)
+            molten_normal: { name: 'Molten', hpMult: 2.0, speedMult: 1.2, size: 0.7, color: 0xff6600, isMolten: true },
+            molten_speedster: { name: 'Molten Speedster', hpMult: 1.2, speedMult: 2.5, size: 0.5, color: 0xff9900, isMolten: true },
+            molten_giant: { name: 'Molten Giant', hpMult: 5.0, speedMult: 0.6, size: 1.5, color: 0xcc3300, isMolten: true },
+            molten_boss: { name: 'INFERNO BOSS', hpMult: 25.0, speedMult: 0.4, size: 2.5, color: 0xff0000, isMolten: true },
+            // Frozen variants (Wave 50+)
+            frozen_normal: { name: 'Frozen', hpMult: 3.0, speedMult: 1.0, size: 0.8, color: 0x88ddff, isFrozen: true },
+            frozen_speedster: { name: 'Frozen Speedster', hpMult: 2.0, speedMult: 2.2, size: 0.6, color: 0x66ccff, isFrozen: true },
+            frozen_giant: { name: 'Frozen Giant', hpMult: 8.0, speedMult: 0.5, size: 1.8, color: 0x4488cc, isFrozen: true },
+            frozen_boss: { name: 'BLIZZARD LORD', hpMult: 40.0, speedMult: 0.35, size: 3.0, color: 0x00aaff, isFrozen: true }
         };
+
+        let isLavaRealm = false; // Tracks if we've entered lava realm
+        let isIceRealm = false; // Tracks if we've entered ice realm
 
         // --- MUTATIONS ---
         const MUTATIONS = {
@@ -447,6 +460,13 @@
                 const roll = Math.random();
                 if (roll < 0.15) type = 'speedster';
                 else if (roll < 0.25) type = 'giant';
+
+                // Use realm variants based on wave
+                if (wave >= 50) {
+                    type = 'frozen_' + type;
+                } else if (wave >= 25) {
+                    type = 'molten_' + type;
+                }
             }
 
             const typeData = ENEMY_TYPES[type];
@@ -508,6 +528,42 @@
                 mesh.add(glow);
             }
 
+            // Molten enemy effects
+            if (typeData.isMolten) {
+                // Fire glow
+                const fireMat = new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.4 });
+                const fireGlow = new THREE.Mesh(new THREE.SphereGeometry(typeData.size * 1.2, 8, 8), fireMat);
+                mesh.add(fireGlow);
+
+                // Point light
+                const fireLight = new THREE.PointLight(0xff4400, 1, typeData.size * 4);
+                mesh.add(fireLight);
+            }
+
+            // Frozen enemy effects
+            if (typeData.isFrozen) {
+                // Ice glow
+                const iceMat = new THREE.MeshBasicMaterial({ color: 0x88ddff, transparent: true, opacity: 0.3 });
+                const iceGlow = new THREE.Mesh(new THREE.SphereGeometry(typeData.size * 1.2, 8, 8), iceMat);
+                mesh.add(iceGlow);
+
+                // Ice crystals
+                const crystalMat = new THREE.MeshBasicMaterial({ color: 0xaaeeff, transparent: true, opacity: 0.7 });
+                for (let i = 0; i < 4; i++) {
+                    const crystal = new THREE.Mesh(new THREE.ConeGeometry(typeData.size * 0.15, typeData.size * 0.4, 4), crystalMat);
+                    crystal.position.set(
+                        Math.cos(i * Math.PI / 2) * typeData.size * 0.6,
+                        typeData.size * 0.3,
+                        Math.sin(i * Math.PI / 2) * typeData.size * 0.6
+                    );
+                    mesh.add(crystal);
+                }
+
+                // Cold light
+                const iceLight = new THREE.PointLight(0x88ddff, 0.8, typeData.size * 4);
+                mesh.add(iceLight);
+            }
+
             scene.add(mesh);
 
             // Calculate HP (buffed base HP)
@@ -537,8 +593,136 @@
         }
 
         function spawnBoss() {
-            spawnEnemy('boss', 'none');
-            showError('⚠️ BOSS INCOMING! ⚠️');
+            // Use realm boss based on wave
+            let bossType = 'boss';
+            let bossName = '⚠️ BOSS';
+
+            if (wave >= 50) {
+                bossType = 'frozen_boss';
+                bossName = '❄️ BLIZZARD LORD';
+            } else if (wave >= 25) {
+                bossType = 'molten_boss';
+                bossName = '🔥 INFERNO BOSS';
+            }
+
+            spawnEnemy(bossType, 'none');
+            showError(`${bossName} INCOMING! ⚠️`);
+        }
+
+        // Transform terrain to lava realm
+        function transformToLavaRealm() {
+            if (isLavaRealm) return;
+            isLavaRealm = true;
+
+            showError('🌋 THE REALM TRANSFORMS... 🌋');
+
+            // Change ground to lava colors
+            groundPlane.material.color.setHex(0x1a0a00);
+            groundPlane.material.emissive = new THREE.Color(0x330000);
+            groundPlane.material.emissiveIntensity = 0.3;
+
+            // Change scene background and fog
+            scene.background = new THREE.Color(0x1a0500);
+            scene.fog = new THREE.Fog(0x1a0500, 20, 80);
+
+            // Change terrain objects to molten rock
+            terrainObjects.forEach(obj => {
+                obj.material = new THREE.MeshStandardMaterial({
+                    color: 0x2a1a0a,
+                    emissive: 0x441100,
+                    emissiveIntensity: 0.5,
+                    roughness: 0.8
+                });
+            });
+
+            // Add lava pools (simple glowing circles on ground)
+            for (let i = 0; i < 15; i++) {
+                const poolGeom = new THREE.CircleGeometry(2 + Math.random() * 3, 16);
+                const poolMat = new THREE.MeshBasicMaterial({
+                    color: 0xff4400,
+                    transparent: true,
+                    opacity: 0.7
+                });
+                const pool = new THREE.Mesh(poolGeom, poolMat);
+                pool.rotation.x = -Math.PI / 2;
+                pool.position.set(
+                    (Math.random() - 0.5) * 80,
+                    0.05,
+                    (Math.random() - 0.5) * 80
+                );
+                scene.add(pool);
+
+                // Add glow light
+                const lavaLight = new THREE.PointLight(0xff2200, 0.5, 8);
+                lavaLight.position.copy(pool.position);
+                lavaLight.position.y = 0.5;
+                scene.add(lavaLight);
+            }
+        }
+
+        // Transform terrain to ice realm
+        function transformToIceRealm() {
+            if (isIceRealm) return;
+            isIceRealm = true;
+
+            showError('❄️ THE REALM FREEZES... ❄️');
+
+            // Change ground to frozen colors
+            groundPlane.material.color.setHex(0x1a2a3a);
+            groundPlane.material.emissive = new THREE.Color(0x112233);
+            groundPlane.material.emissiveIntensity = 0.2;
+
+            // Change scene background and fog
+            scene.background = new THREE.Color(0x0a1520);
+            scene.fog = new THREE.Fog(0x0a1520, 15, 70);
+
+            // Change terrain objects to frozen rock
+            terrainObjects.forEach(obj => {
+                obj.material = new THREE.MeshStandardMaterial({
+                    color: 0x4488aa,
+                    emissive: 0x224466,
+                    emissiveIntensity: 0.3,
+                    roughness: 0.3,
+                    metalness: 0.5
+                });
+            });
+
+            // Add ice patches (crystalline surfaces)
+            for (let i = 0; i < 20; i++) {
+                const patchGeom = new THREE.CircleGeometry(1.5 + Math.random() * 2.5, 6);
+                const patchMat = new THREE.MeshBasicMaterial({
+                    color: 0x88ddff,
+                    transparent: true,
+                    opacity: 0.5
+                });
+                const patch = new THREE.Mesh(patchGeom, patchMat);
+                patch.rotation.x = -Math.PI / 2;
+                patch.position.set(
+                    (Math.random() - 0.5) * 80,
+                    0.06,
+                    (Math.random() - 0.5) * 80
+                );
+                scene.add(patch);
+
+                // Add ice crystals on some patches
+                if (Math.random() > 0.5) {
+                    const crystalMat = new THREE.MeshBasicMaterial({ color: 0xaaeeff, transparent: true, opacity: 0.8 });
+                    for (let j = 0; j < 3; j++) {
+                        const crystal = new THREE.Mesh(new THREE.ConeGeometry(0.3, 1.5 + Math.random(), 4), crystalMat);
+                        crystal.position.copy(patch.position);
+                        crystal.position.x += (Math.random() - 0.5) * 2;
+                        crystal.position.z += (Math.random() - 0.5) * 2;
+                        crystal.position.y = 0.75;
+                        scene.add(crystal);
+                    }
+                }
+
+                // Add cold light
+                const iceLight = new THREE.PointLight(0x88ddff, 0.3, 6);
+                iceLight.position.copy(patch.position);
+                iceLight.position.y = 0.5;
+                scene.add(iceLight);
+            }
         }
 
         const btnStartWave = document.getElementById('btnStartWave');
@@ -556,10 +740,24 @@
             // Wave Logic: 5 + Wave Index enemies
             enemiesToSpawn = 5 + Math.floor(wave * 1.5);
 
+            // Transform to lava realm at wave 25
+            if (wave === 25) {
+                transformToLavaRealm();
+            }
+
+            // Transform to ice realm at wave 50
+            if (wave === 50) {
+                transformToIceRealm();
+            }
+
             // Boss wave every 10 waves
             if (wave % 10 === 0) {
                 spawnBoss();
                 showError(`⚠️ BOSS WAVE ${wave}! ⚠️`);
+            } else if (wave === 50) {
+                showError(`❄️ WAVE 50: ICE REALM BEGINS! ❄️`);
+            } else if (wave === 25) {
+                showError(`🔥 WAVE 25: LAVA REALM BEGINS! 🔥`);
             } else {
                 showError(`Wave ${wave} Started!`);
             }
