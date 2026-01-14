@@ -143,8 +143,13 @@
             <span class="stat-label">Level</span>
             <span id="refLevel">1</span>
         </div>
+        <div class="stat-row">
+            <span class="stat-label">DPS</span>
+            <span id="refDPS">0</span>
+        </div>
         <button id="btnUpgrade"
-            style="width: 100%; margin-top: 10px; background: #eab308; color: black; font-weight: bold; cursor: pointer;">UPGRADE</button>
+            style="width: 100%; margin-top: 10px; background: #eab308; color: black; font-weight: bold; cursor: pointer;">UPGRADE
+            ($100)</button>
         <button id="btnCloseStats"
             style="width: 100%; margin-top: 10px; font-size: 12px; background: #ef4444; color: white;">Close</button>
     </div>
@@ -163,6 +168,7 @@
         <button id="btnTesla" style="border: 2px solid #555; color: #0ea5e9;">Tesla<br><span
                 style="font-size:10px;color:#4ade80;">$300</span></button>
         <div style="width: 20px;"></div>
+        <button id="btnSpeed" style="border: 2px solid #a855f7; color: #a855f7;">Speed: 1x</button>
         <button id="btnMusic" style="border: 2px solid #888;">🎵 Music</button>
     </div>
 
@@ -186,6 +192,25 @@
                 musicPlaying = false;
                 btnMusic.style.borderColor = '#888';
                 btnMusic.textContent = "🎵 Music Off";
+            }
+        });
+
+        // --- GAME SPEED CONTROL ---
+        let gameSpeed = 1;
+        const speedOptions = [1, 2, 5, 10, 20];
+        let speedIndex = 0;
+        const btnSpeed = document.getElementById('btnSpeed');
+
+        btnSpeed.addEventListener('click', () => {
+            speedIndex = (speedIndex + 1) % speedOptions.length;
+            gameSpeed = speedOptions[speedIndex];
+            btnSpeed.textContent = `Speed: ${gameSpeed}x`;
+            if (gameSpeed > 1) {
+                btnSpeed.style.background = '#a855f7';
+                btnSpeed.style.color = 'white';
+            } else {
+                btnSpeed.style.background = '';
+                btnSpeed.style.color = '#a855f7';
             }
         });
 
@@ -2015,11 +2040,17 @@
             if (selectedPlacedTower) {
                 const t = selectedPlacedTower;
                 refLevel.textContent = t.level || 1;
+
+                // Calculate and display DPS
+                const dps = (t.damage * 60 / t.maxCooldown).toFixed(1);
+                document.getElementById('refDPS').textContent = dps;
+
                 if (t.level >= t.maxLevel) {
                     btnUpgrade.textContent = "MAX LEVEL";
                     btnUpgrade.style.background = "#555";
                 } else {
-                    btnUpgrade.textContent = "UPGRADE";
+                    const cost = getUpgradeCost(t);
+                    btnUpgrade.textContent = `UPGRADE ($${cost})`;
                     btnUpgrade.style.background = "#eab308";
                 }
             }
@@ -2386,34 +2417,22 @@
                 return;
             }
 
-            // Enemy Logic
-            for (let i = enemies.length - 1; i >= 0; i--) {
-                const enemy = enemies[i];
-                if (!enemy.active) continue;
+            // Run game logic multiple times based on speed
+            for (let speedTick = 0; speedTick < gameSpeed; speedTick++) {
 
-                // Regeneration mutation
-                if (enemy.regenRate && enemy.hp < enemy.maxHp) {
-                    enemy.hp = Math.min(enemy.maxHp, enemy.hp + enemy.regenRate / 60); // Per frame
-                }
+                // Enemy Logic
+                for (let i = enemies.length - 1; i >= 0; i--) {
+                    const enemy = enemies[i];
+                    if (!enemy.active) continue;
 
-                // Move towards next node
-                const target = pathNodes[enemy.nodeIndex + 1];
-                if (!target) {
-                    // Reached end - GAME OVER!
-                    enemy.active = false;
-                    scene.remove(enemy.mesh);
-                    enemies.splice(i, 1);
-                    gameOver();
-                    return;
-                }
+                    // Regeneration mutation
+                    if (enemy.regenRate && enemy.hp < enemy.maxHp) {
+                        enemy.hp = Math.min(enemy.maxHp, enemy.hp + enemy.regenRate / 60); // Per frame
+                    }
 
-                const dir = new THREE.Vector3().subVectors(target, enemy.mesh.position).normalize();
-                dir.y = 0; // Keep horizontal movement only
-                const dist = enemy.mesh.position.distanceTo(new THREE.Vector3(target.x, enemy.mesh.position.y, target.z));
-
-                if (dist < 0.2) {
-                    enemy.nodeIndex++;
-                    if (enemy.nodeIndex >= pathNodes.length - 1) {
+                    // Move towards next node
+                    const target = pathNodes[enemy.nodeIndex + 1];
+                    if (!target) {
                         // Reached end - GAME OVER!
                         enemy.active = false;
                         scene.remove(enemy.mesh);
@@ -2421,209 +2440,226 @@
                         gameOver();
                         return;
                     }
-                } else {
-                    enemy.mesh.position.add(dir.multiplyScalar(enemy.speed));
-                }
 
-                // Maintain flying height
-                if (enemy.isFlying) {
-                    enemy.mesh.position.y = enemy.baseY;
-                }
-            }
+                    const dir = new THREE.Vector3().subVectors(target, enemy.mesh.position).normalize();
+                    dir.y = 0; // Keep horizontal movement only
+                    const dist = enemy.mesh.position.distanceTo(new THREE.Vector3(target.x, enemy.mesh.position.y, target.z));
 
-            // --- WAVE SYSTEM UPDATE ---
-            if (waveState === 'SPAWNING') {
-                if (spawnTimer > 0) {
-                    spawnTimer--;
-                } else {
-                    spawnEnemy();
-                    enemiesToSpawn--;
-                    spawnTimer = TIME_BETWEEN_SPAWNS;
-
-                    if (enemiesToSpawn <= 0) {
-                        waveState = 'ACTIVE';
-                    }
-                }
-            } else if (waveState === 'ACTIVE') {
-                // Check if all enemies dead
-                if (enemies.length === 0) {
-                    waveState = 'COOLDOWN';
-                    waveCooldown = TIME_BETWEEN_WAVES;
-
-                    // Wave completion bonus
-                    const waveBonus = 50 + (wave * 10);
-                    addMoney(waveBonus);
-                    showError(`Wave Cleared! +$${waveBonus} Bonus!`);
-                }
-            } else if (waveState === 'COOLDOWN') {
-                if (waveCooldown > 0) {
-                    waveCooldown--;
-                } else {
-                    // NEXT WAVE
-                    wave++;
-                    startWave();
-                }
-            }
-
-            // Tower Logic (Shooting)
-            towers.forEach(t => {
-                if (t.cooldown > 0) t.cooldown--;
-                else {
-                    // Find target
-                    let target = null;
-                    let minDist = t.range;
-
-                    for (const e of enemies) {
-                        // Flying enemies can only be hit by Tesla and Sniper towers
-                        if (e.isFlying && t.type !== 'tesla' && t.type !== 'sniper') continue;
-
-                        const dist = t.mesh.position.distanceTo(e.mesh.position);
-                        if (dist < minDist) {
-                            minDist = dist;
-                            target = e;
+                    if (dist < 0.2) {
+                        enemy.nodeIndex++;
+                        if (enemy.nodeIndex >= pathNodes.length - 1) {
+                            // Reached end - GAME OVER!
+                            enemy.active = false;
+                            scene.remove(enemy.mesh);
+                            enemies.splice(i, 1);
+                            gameOver();
+                            return;
                         }
+                    } else {
+                        enemy.mesh.position.add(dir.multiplyScalar(enemy.speed));
                     }
 
-                    if (target) {
-                        t.cooldown = t.maxCooldown;
+                    // Maintain flying height
+                    if (enemy.isFlying) {
+                        enemy.mesh.position.y = enemy.baseY;
+                    }
+                }
 
-                        // Look at Target (Y-axis only)
-                        t.mesh.lookAt(target.mesh.position.x, t.mesh.position.y, target.mesh.position.z);
+                // --- WAVE SYSTEM UPDATE ---
+                if (waveState === 'SPAWNING') {
+                    if (spawnTimer > 0) {
+                        spawnTimer--;
+                    } else {
+                        spawnEnemy();
+                        enemiesToSpawn--;
+                        spawnTimer = TIME_BETWEEN_SPAWNS;
 
-                        // PLAY SOUND
-                        playSound(t.type);
+                        if (enemiesToSpawn <= 0) {
+                            waveState = 'ACTIVE';
+                        }
+                    }
+                } else if (waveState === 'ACTIVE') {
+                    // Check if all enemies dead
+                    if (enemies.length === 0) {
+                        waveState = 'COOLDOWN';
+                        waveCooldown = TIME_BETWEEN_WAVES;
 
-                        // Create Projectile (Standard)
-                        if (t.type !== 'pyro' && t.type !== 'tesla') {
-                            createProjectile(t.mesh.position.clone().add(new THREE.Vector3(0, 3, 0)), target.mesh.position);
+                        // Wave completion bonus
+                        const waveBonus = 50 + (wave * 10);
+                        addMoney(waveBonus);
+                        showError(`Wave Cleared! +$${waveBonus} Bonus!`);
+                    }
+                } else if (waveState === 'COOLDOWN') {
+                    if (waveCooldown > 0) {
+                        waveCooldown--;
+                    } else {
+                        // NEXT WAVE
+                        wave++;
+                        startWave();
+                    }
+                }
+
+                // Tower Logic (Shooting)
+                towers.forEach(t => {
+                    if (t.cooldown > 0) t.cooldown--;
+                    else {
+                        // Find target
+                        let target = null;
+                        let minDist = t.range;
+
+                        for (const e of enemies) {
+                            // Flying enemies can only be hit by Tesla and Sniper towers
+                            if (e.isFlying && t.type !== 'tesla' && t.type !== 'sniper') continue;
+
+                            const dist = t.mesh.position.distanceTo(e.mesh.position);
+                            if (dist < minDist) {
+                                minDist = dist;
+                                target = e;
+                            }
                         }
 
-                        // VISUAL EFFECTS & SPECIAL LOGIC
+                        if (target) {
+                            t.cooldown = t.maxCooldown;
 
-                        // Sniper Tracer
-                        if (t.type === 'sniper') {
-                            const laserGeom = new THREE.BufferGeometry().setFromPoints([
-                                t.mesh.position.clone().add(new THREE.Vector3(0, 3, 0)),
-                                target.mesh.position
-                            ]);
-                            const laserMat = new THREE.LineBasicMaterial({ color: 0xffaa00 });
-                            const laser = new THREE.Line(laserGeom, laserMat);
-                            scene.add(laser);
-                            setTimeout(() => scene.remove(laser), 50);
-                        }
+                            // Look at Target (Y-axis only)
+                            t.mesh.lookAt(target.mesh.position.x, t.mesh.position.y, target.mesh.position.z);
 
-                        // Pyromancer Flame
-                        if (t.type === 'pyro') {
-                            // Draw a thicker orange line
-                            /* 
-                                Ideally particles, but line is easier for single file. 
-                            */
-                            const laserGeom = new THREE.BufferGeometry().setFromPoints([
-                                t.mesh.position.clone().add(new THREE.Vector3(0.6, 2.7, 0.7)), // Staff tip
-                                target.mesh.position
-                            ]);
-                            const laserMat = new THREE.LineBasicMaterial({ color: 0xff4400, linewidth: 3 });
-                            const laser = new THREE.Line(laserGeom, laserMat);
-                            scene.add(laser);
-                            setTimeout(() => scene.remove(laser), 40); // Fast fade for flicker
-                        }
+                            // PLAY SOUND
+                            playSound(t.type);
 
-                        // Tesla Lightning
-                        if (t.type === 'tesla') {
-                            const bolts = [];
-                            bolts.push(target);
+                            // Create Projectile (Standard)
+                            if (t.type !== 'pyro' && t.type !== 'tesla') {
+                                createProjectile(t.mesh.position.clone().add(new THREE.Vector3(0, 3, 0)), target.mesh.position);
+                            }
 
-                            // Find targets near the main target (Chain)
-                            // Level 1: 2 extra (3 total)
-                            // Level 2: 3 extra (4 total)
-                            // Level 3: 4 extra (5 total)
-                            const chainLimit = 1 + (t.level || 1);
-                            const chainRange = 8; // Units to chain lightning
-                            let chainCount = 0;
-                            for (const e of enemies) {
-                                if (chainCount >= chainLimit) break;
-                                if (e === target) continue;
-                                if (e.mesh.position.distanceTo(target.mesh.position) < chainRange) {
-                                    bolts.push(e);
-                                    // Deal damage to chained
-                                    e.hp -= (t.damage * 0.5); // Half dmg to bounce
-                                    if (e.hp <= 0 && e.active) {
-                                        e.active = false;
-                                        scene.remove(e.mesh);
-                                        const idx = enemies.indexOf(e);
-                                        if (idx > -1) enemies.splice(idx, 1);
-                                        t.kills++;
+                            // VISUAL EFFECTS & SPECIAL LOGIC
+
+                            // Sniper Tracer
+                            if (t.type === 'sniper') {
+                                const laserGeom = new THREE.BufferGeometry().setFromPoints([
+                                    t.mesh.position.clone().add(new THREE.Vector3(0, 3, 0)),
+                                    target.mesh.position
+                                ]);
+                                const laserMat = new THREE.LineBasicMaterial({ color: 0xffaa00 });
+                                const laser = new THREE.Line(laserGeom, laserMat);
+                                scene.add(laser);
+                                setTimeout(() => scene.remove(laser), 50);
+                            }
+
+                            // Pyromancer Flame
+                            if (t.type === 'pyro') {
+                                // Draw a thicker orange line
+                                /* 
+                                    Ideally particles, but line is easier for single file. 
+                                */
+                                const laserGeom = new THREE.BufferGeometry().setFromPoints([
+                                    t.mesh.position.clone().add(new THREE.Vector3(0.6, 2.7, 0.7)), // Staff tip
+                                    target.mesh.position
+                                ]);
+                                const laserMat = new THREE.LineBasicMaterial({ color: 0xff4400, linewidth: 3 });
+                                const laser = new THREE.Line(laserGeom, laserMat);
+                                scene.add(laser);
+                                setTimeout(() => scene.remove(laser), 40); // Fast fade for flicker
+                            }
+
+                            // Tesla Lightning
+                            if (t.type === 'tesla') {
+                                const bolts = [];
+                                bolts.push(target);
+
+                                // Find targets near the main target (Chain)
+                                // Level 1: 2 extra (3 total)
+                                // Level 2: 3 extra (4 total)
+                                // Level 3: 4 extra (5 total)
+                                const chainLimit = 1 + (t.level || 1);
+                                const chainRange = 8; // Units to chain lightning
+                                let chainCount = 0;
+                                for (const e of enemies) {
+                                    if (chainCount >= chainLimit) break;
+                                    if (e === target) continue;
+                                    if (e.mesh.position.distanceTo(target.mesh.position) < chainRange) {
+                                        bolts.push(e);
+                                        // Deal damage to chained
+                                        e.hp -= (t.damage * 0.5); // Half dmg to bounce
+                                        if (e.hp <= 0 && e.active) {
+                                            e.active = false;
+                                            scene.remove(e.mesh);
+                                            const idx = enemies.indexOf(e);
+                                            if (idx > -1) enemies.splice(idx, 1);
+                                            t.kills++;
+                                        }
+                                        chainCount++;
                                     }
-                                    chainCount++;
                                 }
+
+                                // Draw ZigZags
+                                const startPos = t.mesh.position.clone().add(new THREE.Vector3(0, 2.5, 0));
+                                let prevPos = startPos;
+
+                                bolts.forEach(boltTarget => {
+                                    const endPos = boltTarget.mesh.position;
+
+                                    // Simple Line for now (Zigzag is complex for 1 tool call)
+                                    const geom = new THREE.BufferGeometry().setFromPoints([prevPos, endPos]);
+                                    const mat = new THREE.LineBasicMaterial({ color: 0x00ffff });
+                                    const line = new THREE.Line(geom, mat);
+                                    scene.add(line);
+                                    setTimeout(() => scene.remove(line), 100);
+
+                                    prevPos = endPos;
+                                });
                             }
 
-                            // Draw ZigZags
-                            const startPos = t.mesh.position.clone().add(new THREE.Vector3(0, 2.5, 0));
-                            let prevPos = startPos;
-
-                            bolts.forEach(boltTarget => {
-                                const endPos = boltTarget.mesh.position;
-
-                                // Simple Line for now (Zigzag is complex for 1 tool call)
-                                const geom = new THREE.BufferGeometry().setFromPoints([prevPos, endPos]);
-                                const mat = new THREE.LineBasicMaterial({ color: 0x00ffff });
-                                const line = new THREE.Line(geom, mat);
-                                scene.add(line);
-                                setTimeout(() => scene.remove(line), 100);
-
-                                prevPos = endPos;
-                            });
-                        }
-
-                        // Damage Logic (Main Target)
-                        // Apply damage reduction for Loaded mutation
-                        let finalDamage = t.damage;
-                        if (target.damageReduction) {
-                            finalDamage = t.damage * (1 - target.damageReduction);
-                        }
-                        target.hp -= finalDamage;
-                        if (target.hp <= 0) {
-                            target.active = false;
-                            scene.remove(target.mesh);
-                            const idx = enemies.indexOf(target);
-                            if (idx > -1) enemies.splice(idx, 1);
-
-                            t.kills++;
-                            if (selectedPlacedTower === t) {
-                                uiKills.textContent = t.kills;
+                            // Damage Logic (Main Target)
+                            // Apply damage reduction for Loaded mutation
+                            let finalDamage = t.damage;
+                            if (target.damageReduction) {
+                                finalDamage = t.damage * (1 - target.damageReduction);
                             }
+                            target.hp -= finalDamage;
+                            if (target.hp <= 0) {
+                                target.active = false;
+                                scene.remove(target.mesh);
+                                const idx = enemies.indexOf(target);
+                                if (idx > -1) enemies.splice(idx, 1);
 
-                            // Money reward based on enemy type
-                            let reward = 5 + Math.floor(wave * 0.5); // Base reward scales with wave
-                            if (target.type && target.type.includes('giant')) reward *= 3;
-                            if (target.type && target.type.includes('boss')) reward *= 10;
-                            if (target.type && target.type.includes('molten')) reward *= 1.5;
-                            if (target.type && target.type.includes('frozen')) reward *= 2;
-                            if (target.type && target.type.includes('void')) reward *= 2.5;
-                            if (target.type && target.type.includes('heavenly')) reward *= 3;
-                            addMoney(Math.floor(reward));
+                                t.kills++;
+                                if (selectedPlacedTower === t) {
+                                    uiKills.textContent = t.kills;
+                                }
+
+                                // Money reward based on enemy type
+                                let reward = 5 + Math.floor(wave * 0.5); // Base reward scales with wave
+                                if (target.type && target.type.includes('giant')) reward *= 3;
+                                if (target.type && target.type.includes('boss')) reward *= 10;
+                                if (target.type && target.type.includes('molten')) reward *= 1.5;
+                                if (target.type && target.type.includes('frozen')) reward *= 2;
+                                if (target.type && target.type.includes('void')) reward *= 2.5;
+                                if (target.type && target.type.includes('heavenly')) reward *= 3;
+                                addMoney(Math.floor(reward));
+                            }
                         }
                     }
+                });
+
+                // Update Counter
+                document.getElementById('enemyCountDisplay').textContent = `Enemies: ${enemies.length}`;
+
+                // Update Projectiles
+                for (let i = projectiles.length - 1; i >= 0; i--) {
+                    const p = projectiles[i];
+                    if (!p.active) continue;
+
+                    const dir = new THREE.Vector3().subVectors(p.target, p.mesh.position).normalize();
+                    p.mesh.position.add(dir.multiplyScalar(2.0)); // Fast speed
+
+                    if (p.mesh.position.distanceTo(p.target) < 1.0) {
+                        scene.remove(p.mesh);
+                        projectiles.splice(i, 1);
+                    }
                 }
-            });
 
-            // Update Counter
-            document.getElementById('enemyCountDisplay').textContent = `Enemies: ${enemies.length}`;
-
-            // Update Projectiles
-            for (let i = projectiles.length - 1; i >= 0; i--) {
-                const p = projectiles[i];
-                if (!p.active) continue;
-
-                const dir = new THREE.Vector3().subVectors(p.target, p.mesh.position).normalize();
-                p.mesh.position.add(dir.multiplyScalar(2.0)); // Fast speed
-
-                if (p.mesh.position.distanceTo(p.target) < 1.0) {
-                    scene.remove(p.mesh);
-                    projectiles.splice(i, 1);
-                }
-            }
+            } // End speed loop
 
             composer.render();
         }
