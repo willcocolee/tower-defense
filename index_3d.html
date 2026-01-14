@@ -152,11 +152,16 @@
     <div id="controls">
         <button id="btnStartWave" style="background: #22c55e; color: white;">Start Game</button>
         <div style="width: 20px;"></div>
-        <button id="btnBasic" style="border: 2px solid #3b82f6;">Basic</button>
-        <button id="btnSniper" style="border: 2px solid #555;">Sniper</button>
-        <button id="btnScout" style="border: 2px solid #555;">Scout</button>
-        <button id="btnPyro" style="border: 2px solid #555; color: #f97316;">Pyro</button>
-        <button id="btnTesla" style="border: 2px solid #555; color: #0ea5e9;">Tesla</button>
+        <button id="btnBasic" style="border: 2px solid #3b82f6;">Basic<br><span
+                style="font-size:10px;color:#4ade80;">$100</span></button>
+        <button id="btnSniper" style="border: 2px solid #555;">Sniper<br><span
+                style="font-size:10px;color:#4ade80;">$250</span></button>
+        <button id="btnScout" style="border: 2px solid #555;">Scout<br><span
+                style="font-size:10px;color:#4ade80;">$150</span></button>
+        <button id="btnPyro" style="border: 2px solid #555; color: #f97316;">Pyro<br><span
+                style="font-size:10px;color:#4ade80;">$200</span></button>
+        <button id="btnTesla" style="border: 2px solid #555; color: #0ea5e9;">Tesla<br><span
+                style="font-size:10px;color:#4ade80;">$300</span></button>
         <div style="width: 20px;"></div>
         <button id="btnMusic" style="border: 2px solid #888;">🎵 Music</button>
     </div>
@@ -489,12 +494,21 @@
             void_normal: { name: 'Void', hpMult: 4.0, speedMult: 1.1, size: 0.9, color: 0x6600cc, isVoid: true },
             void_speedster: { name: 'Void Speedster', hpMult: 3.0, speedMult: 2.5, size: 0.7, color: 0x9933ff, isVoid: true },
             void_giant: { name: 'Void Giant', hpMult: 12.0, speedMult: 0.55, size: 2.0, color: 0x4400aa, isVoid: true },
-            void_boss: { name: 'VOID EMPEROR', hpMult: 60.0, speedMult: 0.4, size: 3.5, color: 0x8800ff, isVoid: true }
+            void_boss: { name: 'VOID EMPEROR', hpMult: 60.0, speedMult: 0.4, size: 3.5, color: 0x8800ff, isVoid: true },
+            // Heavenly variants (Wave 100+)
+            heavenly_normal: { name: 'Celestial', hpMult: 5.0, speedMult: 1.2, size: 1.0, color: 0xffdd88, isHeavenly: true },
+            heavenly_speedster: { name: 'Seraph', hpMult: 4.0, speedMult: 2.8, size: 0.8, color: 0xffee99, isHeavenly: true },
+            heavenly_giant: { name: 'Archangel', hpMult: 15.0, speedMult: 0.6, size: 2.2, color: 0xffffff, isHeavenly: true },
+            heavenly_boss: { name: 'DIVINE TITAN', hpMult: 80.0, speedMult: 0.45, size: 4.0, color: 0xffffaa, isHeavenly: true }
         };
 
         let isLavaRealm = false; // Tracks if we've entered lava realm
         let isIceRealm = false; // Tracks if we've entered ice realm
         let isVoidRealm = false; // Tracks if we've entered void realm
+        let isHeavenlyRealm = false; // Tracks if we've entered heavenly realm
+
+        // Store biome objects for cleanup
+        let biomeObjects = [];
 
         // --- MUTATIONS ---
         const MUTATIONS = {
@@ -516,7 +530,9 @@
                 else if (roll < 0.25) type = 'giant';
 
                 // Use realm variants based on wave
-                if (wave >= 75) {
+                if (wave >= 100) {
+                    type = 'heavenly_' + type;
+                } else if (wave >= 75) {
                     type = 'void_' + type;
                 } else if (wave >= 50) {
                     type = 'frozen_' + type;
@@ -641,6 +657,36 @@
                 mesh.add(voidLight);
             }
 
+            // Heavenly enemy effects
+            if (typeData.isHeavenly) {
+                // Golden glow
+                const goldenMat = new THREE.MeshBasicMaterial({ color: 0xffdd88, transparent: true, opacity: 0.4 });
+                const goldenGlow = new THREE.Mesh(new THREE.SphereGeometry(typeData.size * 1.4, 8, 8), goldenMat);
+                mesh.add(goldenGlow);
+
+                // Halo
+                const haloMat = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.8, side: THREE.DoubleSide });
+                const halo = new THREE.Mesh(new THREE.RingGeometry(typeData.size * 0.6, typeData.size * 0.8, 16), haloMat);
+                halo.rotation.x = Math.PI / 2;
+                halo.position.y = typeData.size + 0.3;
+                mesh.add(halo);
+
+                // Angel wings
+                const wingMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, side: THREE.DoubleSide });
+                const wingL = new THREE.Mesh(new THREE.PlaneGeometry(typeData.size * 1.2, typeData.size * 0.8), wingMat);
+                wingL.position.set(-typeData.size * 0.8, typeData.size * 0.2, -0.2);
+                wingL.rotation.y = Math.PI / 3;
+                mesh.add(wingL);
+                const wingR = new THREE.Mesh(new THREE.PlaneGeometry(typeData.size * 1.2, typeData.size * 0.8), wingMat);
+                wingR.position.set(typeData.size * 0.8, typeData.size * 0.2, -0.2);
+                wingR.rotation.y = -Math.PI / 3;
+                mesh.add(wingR);
+
+                // Divine light
+                const divineLight = new THREE.PointLight(0xffffaa, 1.5, typeData.size * 6);
+                mesh.add(divineLight);
+            }
+
             scene.add(mesh);
 
             // Calculate HP (buffed base HP)
@@ -674,7 +720,10 @@
             let bossType = 'boss';
             let bossName = '⚠️ BOSS';
 
-            if (wave >= 75) {
+            if (wave >= 100) {
+                bossType = 'heavenly_boss';
+                bossName = '✨ DIVINE TITAN';
+            } else if (wave >= 75) {
                 bossType = 'void_boss';
                 bossName = '🕳️ VOID EMPEROR';
             } else if (wave >= 50) {
@@ -731,19 +780,32 @@
                     (Math.random() - 0.5) * 80
                 );
                 scene.add(pool);
+                biomeObjects.push(pool);
 
                 // Add glow light
                 const lavaLight = new THREE.PointLight(0xff2200, 0.5, 8);
                 lavaLight.position.copy(pool.position);
                 lavaLight.position.y = 0.5;
                 scene.add(lavaLight);
+                biomeObjects.push(lavaLight);
             }
+        }
+
+        // Cleanup previous biome objects
+        function cleanupBiomeObjects() {
+            biomeObjects.forEach(obj => {
+                scene.remove(obj);
+            });
+            biomeObjects = [];
         }
 
         // Transform terrain to ice realm
         function transformToIceRealm() {
             if (isIceRealm) return;
             isIceRealm = true;
+
+            // Cleanup previous biome objects
+            cleanupBiomeObjects();
 
             showError('❄️ THE REALM FREEZES... ❄️');
 
@@ -794,6 +856,7 @@
                         crystal.position.z += (Math.random() - 0.5) * 2;
                         crystal.position.y = 0.75;
                         scene.add(crystal);
+                        biomeObjects.push(crystal);
                     }
                 }
 
@@ -802,6 +865,8 @@
                 iceLight.position.copy(patch.position);
                 iceLight.position.y = 0.5;
                 scene.add(iceLight);
+                biomeObjects.push(patch);
+                biomeObjects.push(iceLight);
             }
         }
 
@@ -809,6 +874,9 @@
         function transformToVoidRealm() {
             if (isVoidRealm) return;
             isVoidRealm = true;
+
+            // Cleanup previous biome objects
+            cleanupBiomeObjects();
 
             showError('🕳️ THE VOID CONSUMES ALL... 🕳️');
 
@@ -850,6 +918,7 @@
                     (Math.random() - 0.5) * 80
                 );
                 scene.add(rift);
+                biomeObjects.push(rift);
 
                 // Add void energy pillar
                 const pillarMat = new THREE.MeshBasicMaterial({ color: 0x6600cc, transparent: true, opacity: 0.4 });
@@ -857,12 +926,81 @@
                 pillar.position.copy(rift.position);
                 pillar.position.y = 3;
                 scene.add(pillar);
+                biomeObjects.push(pillar);
 
                 // Add void light
                 const voidLight = new THREE.PointLight(0x8800ff, 0.6, 10);
                 voidLight.position.copy(rift.position);
                 voidLight.position.y = 1;
                 scene.add(voidLight);
+                biomeObjects.push(voidLight);
+            }
+        }
+
+        // Transform terrain to heavenly realm
+        function transformToHeavenlyRealm() {
+            if (isHeavenlyRealm) return;
+            isHeavenlyRealm = true;
+
+            // Cleanup previous biome objects
+            cleanupBiomeObjects();
+
+            showError('✨ THE HEAVENS OPEN... ✨');
+
+            // Change ground to heavenly colors (bright gold/white)
+            groundPlane.material.color.setHex(0xffeecc);
+            groundPlane.material.emissive = new THREE.Color(0xffdd88);
+            groundPlane.material.emissiveIntensity = 0.3;
+
+            // Change scene background and fog (bright golden sky)
+            scene.background = new THREE.Color(0xffeedd);
+            scene.fog = new THREE.Fog(0xffeedd, 20, 100);
+
+            // Change terrain objects to divine marble
+            terrainObjects.forEach(obj => {
+                obj.material = new THREE.MeshStandardMaterial({
+                    color: 0xffffff,
+                    emissive: 0xffdd88,
+                    emissiveIntensity: 0.4,
+                    roughness: 0.2,
+                    metalness: 0.3
+                });
+            });
+
+            // Add divine pillars and halos
+            for (let i = 0; i < 15; i++) {
+                // Golden halo rings on ground
+                const haloGeom = new THREE.RingGeometry(2, 2.5, 16);
+                const haloMat = new THREE.MeshBasicMaterial({
+                    color: 0xffdd00,
+                    transparent: true,
+                    opacity: 0.6,
+                    side: THREE.DoubleSide
+                });
+                const halo = new THREE.Mesh(haloGeom, haloMat);
+                halo.rotation.x = -Math.PI / 2;
+                halo.position.set(
+                    (Math.random() - 0.5) * 80,
+                    0.1,
+                    (Math.random() - 0.5) * 80
+                );
+                scene.add(halo);
+                biomeObjects.push(halo);
+
+                // Light pillar rising from halo
+                const pillarMat = new THREE.MeshBasicMaterial({ color: 0xffffcc, transparent: true, opacity: 0.3 });
+                const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.8, 8, 8), pillarMat);
+                pillar.position.copy(halo.position);
+                pillar.position.y = 4;
+                scene.add(pillar);
+                biomeObjects.push(pillar);
+
+                // Divine light
+                const divineLight = new THREE.PointLight(0xffffaa, 0.8, 12);
+                divineLight.position.copy(halo.position);
+                divineLight.position.y = 2;
+                scene.add(divineLight);
+                biomeObjects.push(divineLight);
             }
         }
 
@@ -896,10 +1034,17 @@
                 transformToVoidRealm();
             }
 
+            // Transform to heavenly realm at wave 100
+            if (wave === 100) {
+                transformToHeavenlyRealm();
+            }
+
             // Boss wave every 10 waves
             if (wave % 10 === 0) {
                 spawnBoss();
                 showError(`⚠️ BOSS WAVE ${wave}! ⚠️`);
+            } else if (wave === 100) {
+                showError(`✨ WAVE 100: HEAVENLY REALM BEGINS! ✨`);
             } else if (wave === 75) {
                 showError(`🕳️ WAVE 75: VOID REALM BEGINS! 🕳️`);
             } else if (wave === 50) {
@@ -2202,6 +2347,7 @@
                             if (target.type && target.type.includes('molten')) reward *= 1.5;
                             if (target.type && target.type.includes('frozen')) reward *= 2;
                             if (target.type && target.type.includes('void')) reward *= 2.5;
+                            if (target.type && target.type.includes('heavenly')) reward *= 3;
                             addMoney(Math.floor(reward));
                         }
                     }
