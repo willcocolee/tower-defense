@@ -423,6 +423,19 @@
         }
         createRoad();
 
+        // Green spawn point marker
+        const spawnMarkerGeom = new THREE.CircleGeometry(3, 16);
+        const spawnMarkerMat = new THREE.MeshBasicMaterial({ color: 0x22c55e, transparent: true, opacity: 0.7 });
+        const spawnMarker = new THREE.Mesh(spawnMarkerGeom, spawnMarkerMat);
+        spawnMarker.rotation.x = -Math.PI / 2;
+        spawnMarker.position.set(pathNodes[0].x, 0.03, pathNodes[0].z);
+        scene.add(spawnMarker);
+
+        // Green glow light at spawn
+        const spawnLight = new THREE.PointLight(0x22c55e, 1, 10);
+        spawnLight.position.set(pathNodes[0].x, 1, pathNodes[0].z);
+        scene.add(spawnLight);
+
 
         const towers = [];
         const enemies = [];
@@ -473,6 +486,41 @@
         let waveCooldown = 0;
         const TIME_BETWEEN_SPAWNS = 40; // ~0.7s
         const TIME_BETWEEN_WAVES = 300; // ~5s
+        let isGameOver = false;
+
+        function gameOver() {
+            if (isGameOver) return;
+            isGameOver = true;
+            waveState = 'IDLE';
+
+            // Show game over overlay
+            const overlay = document.createElement('div');
+            overlay.id = 'gameOverOverlay';
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.8);
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                z-index: 10000;
+            `;
+            overlay.innerHTML = `
+                <h1 style="color: #ff4444; font-size: 64px; font-family: sans-serif; margin: 0;">GAME OVER</h1>
+                <p style="color: white; font-size: 24px; font-family: sans-serif;">An enemy reached your base!</p>
+                <p style="color: #888; font-size: 18px; font-family: sans-serif;">Wave Reached: ${wave}</p>
+                <button id="btnRestart" style="margin-top: 30px; padding: 15px 40px; font-size: 20px; background: #22c55e; color: white; border: none; cursor: pointer; border-radius: 8px;">RESTART</button>
+            `;
+            document.body.appendChild(overlay);
+
+            document.getElementById('btnRestart').addEventListener('click', () => {
+                location.reload();
+            });
+        }
 
         // --- ENEMY TYPES ---
         const ENEMY_TYPES = {
@@ -689,8 +737,8 @@
 
             scene.add(mesh);
 
-            // Calculate HP (buffed base HP)
-            const baseHp = 200 + (wave * 50); // Increased from 100 + wave*25
+            // Calculate HP (balanced for early waves)
+            const baseHp = 50 + (wave * 15); // Wave 1 = 65 HP, scales slower
             const hp = Math.floor(baseHp * typeData.hpMult);
 
             // Calculate speed
@@ -1243,38 +1291,69 @@
         function createScoutMesh(level = 1) {
             const group = new THREE.Group();
 
-            // Level-based colors
-            // Lvl 1: Yellow/Blue casual
-            // Lvl 2: Green tactical, helmet
-            // Lvl 3: Gold elite, dual pistols, cape
+            // Level-based progression:
+            // Lvl 1-2: Basic scout (yellow/blue)
+            // Lvl 3-4: Tactical (green, helmet, armor)
+            // Lvl 5-6: Elite (gold trim, dual pistols, cape)
+            // Lvl 7-9: Shadow operative (dark with glowing elements)
+            // Lvl 10: Legendary (golden aura, energy weapons)
 
-            const skinColor = level === 3 ? 0xffd700 : (level === 2 ? 0x90ee90 : 0xfacc15);
-            const shirtColor = level === 3 ? 0x1a1a2e : (level === 2 ? 0x22543d : 0x3b82f6);
-            const pantsColor = level === 3 ? 0x2d2d44 : (level === 2 ? 0x1e3a2f : 0x1e293b);
-            const gunColor = level === 3 ? 0xffd700 : (level === 2 ? 0x2f4f4f : 0x94a3b8);
+            const tier = level >= 10 ? 5 : (level >= 7 ? 4 : (level >= 5 ? 3 : (level >= 3 ? 2 : 1)));
 
-            const matSkin = new THREE.MeshLambertMaterial({ color: skinColor });
-            const matShirt = new THREE.MeshLambertMaterial({ color: shirtColor });
-            const matPants = new THREE.MeshLambertMaterial({ color: pantsColor });
-            const matGun = new THREE.MeshLambertMaterial({ color: gunColor });
+            // Colors based on tier
+            const skinColors = [0xfacc15, 0x90ee90, 0xffd700, 0x4a4a6a, 0xfff8dc];
+            const shirtColors = [0x3b82f6, 0x22543d, 0x1a1a2e, 0x1a0a2e, 0xffd700];
+            const pantsColors = [0x1e293b, 0x1e3a2f, 0x2d2d44, 0x0a0a1a, 0x1a1a2e];
+            const gunColors = [0x94a3b8, 0x2f4f4f, 0xffd700, 0x6600ff, 0x00ffff];
 
-            // Legs
-            const LegL = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.2, 0.5), matPants);
+            const matSkin = new THREE.MeshLambertMaterial({ color: skinColors[tier - 1] });
+            const matShirt = new THREE.MeshLambertMaterial({ color: shirtColors[tier - 1] });
+            const matPants = new THREE.MeshLambertMaterial({ color: pantsColors[tier - 1] });
+            const matGun = new THREE.MeshLambertMaterial({ color: gunColors[tier - 1] });
+
+            // Legs - get armored at higher levels
+            const legArmor = level >= 5 ? 0.1 : 0;
+            const LegL = new THREE.Mesh(new THREE.BoxGeometry(0.5 + legArmor, 1.2, 0.5 + legArmor), matPants);
             LegL.position.set(-0.3, 0.6, 0);
             LegL.castShadow = true;
             group.add(LegL);
 
-            const LegR = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.2, 0.5), matPants);
+            const LegR = new THREE.Mesh(new THREE.BoxGeometry(0.5 + legArmor, 1.2, 0.5 + legArmor), matPants);
             LegR.position.set(0.3, 0.6, 0);
             LegR.castShadow = true;
             group.add(LegR);
 
-            // Torso - bulkier at higher levels
-            const torsoWidth = 1.2 + (level * 0.1);
+            // Knee pads at level 3+
+            if (level >= 3) {
+                const kneeMat = new THREE.MeshLambertMaterial({ color: tier >= 3 ? 0xffd700 : 0x333333 });
+                const kneeL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.15), kneeMat);
+                kneeL.position.set(-0.3, 0.5, 0.3);
+                group.add(kneeL);
+                const kneeR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.15), kneeMat);
+                kneeR.position.set(0.3, 0.5, 0.3);
+                group.add(kneeR);
+            }
+
+            // Torso - gets bulkier with level
+            const torsoWidth = 1.2 + (level * 0.05);
             const torso = new THREE.Mesh(new THREE.BoxGeometry(torsoWidth, 1.2, 0.6), matShirt);
             torso.position.set(0, 1.8, 0);
             torso.castShadow = true;
             group.add(torso);
+
+            // Body armor at level 4+
+            if (level >= 4) {
+                const armorMat = new THREE.MeshStandardMaterial({
+                    color: tier >= 4 ? 0x6600cc : 0x444444,
+                    metalness: 0.7,
+                    roughness: 0.3,
+                    emissive: tier >= 4 ? 0x220044 : 0x000000,
+                    emissiveIntensity: 0.3
+                });
+                const chestPlate = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.8, 0.2), armorMat);
+                chestPlate.position.set(0, 1.85, 0.4);
+                group.add(chestPlate);
+            }
 
             // Head
             const head = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), matSkin);
@@ -1282,19 +1361,40 @@
             head.castShadow = true;
             group.add(head);
 
-            // Helmet at level 2+
-            if (level >= 2) {
+            // Headgear progression
+            if (level >= 7) {
+                // Full tactical helmet with glow
+                const helmetMat = new THREE.MeshStandardMaterial({
+                    color: tier === 5 ? 0xffd700 : 0x1a1a2e,
+                    metalness: 0.8,
+                    roughness: 0.2
+                });
+                const helmet = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.6, 0.95), helmetMat);
+                helmet.position.set(0, 3.0, 0);
+                group.add(helmet);
+
+                // Glowing visor
+                const visorMat = new THREE.MeshBasicMaterial({ color: tier === 5 ? 0x00ffff : 0xff0000 });
+                const visor = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.15, 0.1), visorMat);
+                visor.position.set(0, 2.9, 0.48);
+                group.add(visor);
+
+                // Antenna
+                const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.4, 6), helmetMat);
+                antenna.position.set(0.4, 3.4, 0);
+                group.add(antenna);
+            } else if (level >= 3) {
+                // Tactical helmet
                 const helmet = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.4, 0.9), matShirt);
                 helmet.position.set(0, 3.15, 0);
                 group.add(helmet);
 
-                // Visor
-                const visorMat = new THREE.MeshBasicMaterial({ color: level === 3 ? 0xff4400 : 0x00ff00 });
+                const visorMat = new THREE.MeshBasicMaterial({ color: tier >= 3 ? 0xff4400 : 0x00ff00 });
                 const visor = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.15, 0.1), visorMat);
                 visor.position.set(0, 2.95, 0.41);
                 group.add(visor);
             } else {
-                // Cap at level 1
+                // Basic cap
                 const cap = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.2, 0.85), matShirt);
                 cap.position.set(0, 3.25, 0);
                 group.add(cap);
@@ -1316,41 +1416,71 @@
             HandR.position.set(0.8, 1.8, 0.9);
             group.add(HandR);
 
-            // Pistol (Right hand)
-            const gunMain = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 0.8), matGun);
+            // Primary Pistol - size increases with level
+            const gunScale = 1 + (level * 0.1);
+            const gunMain = new THREE.Mesh(new THREE.BoxGeometry(0.2 * gunScale, 0.3 * gunScale, 0.8 * gunScale), matGun);
             gunMain.position.set(0.8, 2.0, 1.2);
             group.add(gunMain);
             const gunHandle = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.4, 0.2), matGun);
             gunHandle.position.set(0.8, 1.7, 0.9);
             group.add(gunHandle);
 
-            // Dual pistols at level 3
-            if (level === 3) {
-                const gun2Main = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 0.8), matGun);
+            // Dual pistols at level 5+
+            if (level >= 5) {
+                const gun2Main = new THREE.Mesh(new THREE.BoxGeometry(0.2 * gunScale, 0.3 * gunScale, 0.8 * gunScale), matGun);
                 gun2Main.position.set(-0.8, 1.3, 0.4);
                 group.add(gun2Main);
             }
 
-            // Cape at level 3
-            if (level === 3) {
-                const capeMat = new THREE.MeshLambertMaterial({ color: 0x8b0000, side: THREE.DoubleSide });
-                const cape = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 1.5), capeMat);
+            // Cape at level 5+ (gets more elaborate)
+            if (level >= 5) {
+                const capeColor = tier === 5 ? 0xffd700 : (tier === 4 ? 0x4400aa : 0x8b0000);
+                const capeMat = new THREE.MeshLambertMaterial({ color: capeColor, side: THREE.DoubleSide });
+                const capeHeight = 1.5 + (level - 5) * 0.1;
+                const cape = new THREE.Mesh(new THREE.PlaneGeometry(1.0 + (level - 5) * 0.1, capeHeight), capeMat);
                 cape.position.set(0, 1.5, -0.35);
                 cape.rotation.x = 0.2;
                 group.add(cape);
             }
 
-            // Face
-            const matBlack = new THREE.MeshBasicMaterial({ color: 0x000000 });
-            const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.05), matBlack);
-            eyeL.position.set(-0.2, 2.9, 0.41);
-            group.add(eyeL);
-            const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.05), matBlack);
-            eyeR.position.set(0.2, 2.9, 0.41);
-            group.add(eyeR);
-            const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.05, 0.05), matBlack);
-            mouth.position.set(0, 2.7, 0.41);
-            group.add(mouth);
+            // Energy aura at level 7+
+            if (level >= 7) {
+                const auraColor = tier === 5 ? 0xffd700 : 0x6600cc;
+                const auraMat = new THREE.MeshBasicMaterial({ color: auraColor, transparent: true, opacity: 0.2 });
+                const aura = new THREE.Mesh(new THREE.SphereGeometry(1.8, 16, 16), auraMat);
+                aura.position.set(0, 1.8, 0);
+                group.add(aura);
+
+                // Point light for glow
+                const light = new THREE.PointLight(auraColor, 0.5, 4);
+                light.position.set(0, 2, 0);
+                group.add(light);
+            }
+
+            // Legendary crown at level 10
+            if (level >= 10) {
+                const crownMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 1, roughness: 0.2, emissive: 0xffaa00, emissiveIntensity: 0.5 });
+                const crownBase = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.5, 0.2, 8), crownMat);
+                crownBase.position.set(0, 3.5, 0);
+                group.add(crownBase);
+                // Crown spikes
+                for (let i = 0; i < 5; i++) {
+                    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.3, 4), crownMat);
+                    spike.position.set(Math.cos(i * Math.PI * 2 / 5) * 0.35, 3.7, Math.sin(i * Math.PI * 2 / 5) * 0.35);
+                    group.add(spike);
+                }
+            }
+
+            // Face (only visible at lower levels without full helmet)
+            if (level < 7) {
+                const matBlack = new THREE.MeshBasicMaterial({ color: 0x000000 });
+                const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.05), matBlack);
+                eyeL.position.set(-0.2, 2.9, 0.41);
+                group.add(eyeL);
+                const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.05), matBlack);
+                eyeR.position.set(0.2, 2.9, 0.41);
+                group.add(eyeR);
+            }
 
             // Hitbox
             const hitbox = new THREE.Mesh(new THREE.BoxGeometry(1.5, 3.5, 1.5), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
@@ -1364,46 +1494,79 @@
         function createSniperMesh(level = 1) {
             const group = new THREE.Group();
 
-            // Level-based colors
-            // Lvl 1: Standard tactical grey
-            // Lvl 2: Desert camo tan, larger scope
-            // Lvl 3: Arctic white with gold trim, energy rifle
+            // Level-based progression:
+            // Lvl 1-2: Standard tactical (grey) 
+            // Lvl 3-4: Desert ops (tan, larger scope, vest)
+            // Lvl 5-6: Arctic elite (white, gold trim, ghillie)
+            // Lvl 7-9: Void hunter (dark purple, energy rifle, cloak)
+            // Lvl 10: Legendary marksman (golden, plasma cannon, floating)
 
-            const clothesDarkColor = level === 3 ? 0xf0f0f0 : (level === 2 ? 0x8b7355 : 0x334155);
-            const clothesLightColor = level === 3 ? 0xffffff : (level === 2 ? 0xd2b48c : 0x64748b);
-            const gunBodyColor = level === 3 ? 0xffd700 : (level === 2 ? 0x654321 : 0x94a3b8);
-            const glassColor = level === 3 ? 0xff0000 : (level === 2 ? 0x00ff00 : 0xf59e0b);
+            const tier = level >= 10 ? 5 : (level >= 7 ? 4 : (level >= 5 ? 3 : (level >= 3 ? 2 : 1)));
 
-            const matSkin = new THREE.MeshLambertMaterial({ color: 0xffdcb1 });
-            const matClothesDark = new THREE.MeshLambertMaterial({ color: clothesDarkColor });
-            const matClothesLight = new THREE.MeshLambertMaterial({ color: clothesLightColor });
+            // Colors based on tier
+            const clothesDarkColors = [0x334155, 0x8b7355, 0xf0f0f0, 0x1a0a2e, 0x1a1a2e];
+            const clothesLightColors = [0x64748b, 0xd2b48c, 0xffffff, 0x4a2a6a, 0xffd700];
+            const gunBodyColors = [0x94a3b8, 0x654321, 0xffd700, 0x6600cc, 0x00ffff];
+            const glassColors = [0xf59e0b, 0x00ff00, 0xff0000, 0xff00ff, 0x00ffff];
+
+            const matSkin = new THREE.MeshLambertMaterial({ color: tier === 5 ? 0xffeecc : 0xffdcb1 });
+            const matClothesDark = new THREE.MeshLambertMaterial({ color: clothesDarkColors[tier - 1] });
+            const matClothesLight = new THREE.MeshLambertMaterial({ color: clothesLightColors[tier - 1] });
             const matBlack = new THREE.MeshLambertMaterial({ color: 0x111111 });
-            const matGunBody = new THREE.MeshLambertMaterial({ color: gunBodyColor });
-            const matGlass = new THREE.MeshLambertMaterial({ color: glassColor });
+            const matGunBody = new THREE.MeshStandardMaterial({
+                color: gunBodyColors[tier - 1],
+                metalness: tier >= 4 ? 0.9 : 0.3,
+                roughness: tier >= 4 ? 0.2 : 0.7,
+                emissive: tier >= 4 ? gunBodyColors[tier - 1] : 0x000000,
+                emissiveIntensity: tier >= 4 ? 0.3 : 0
+            });
+            const matGlass = new THREE.MeshBasicMaterial({ color: glassColors[tier - 1] });
 
-            // Legs
-            const LegL = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.2, 0.6), matClothesDark);
+            // Legs - more armored at higher tiers
+            const legWidth = 0.5 + (tier >= 3 ? 0.1 : 0);
+            const LegL = new THREE.Mesh(new THREE.BoxGeometry(legWidth, 1.2, 0.6), matClothesDark);
             LegL.position.set(-0.4, 0.6, 0);
             LegL.castShadow = true;
             group.add(LegL);
 
-            const LegR = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.2, 0.6), matClothesDark);
+            const LegR = new THREE.Mesh(new THREE.BoxGeometry(legWidth, 1.2, 0.6), matClothesDark);
             LegR.position.set(0.4, 0.6, 0);
             LegR.castShadow = true;
             group.add(LegR);
 
-            // Torso
-            const torso = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.2, 0.7), matClothesDark);
+            // Torso - larger at higher levels
+            const torsoSize = 1.3 + (level * 0.03);
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(torsoSize, 1.2, 0.7), matClothesDark);
             torso.position.set(0, 1.8, 0);
             torso.castShadow = true;
             group.add(torso);
 
-            // Armor vest at level 2+
-            if (level >= 2) {
-                const vestMat = new THREE.MeshLambertMaterial({ color: level === 3 ? 0xffd700 : 0x556b2f });
+            // Armor vest progression
+            if (level >= 3) {
+                const vestColor = tier === 5 ? 0xffd700 : (tier === 4 ? 0x4400aa : (tier === 3 ? 0xffd700 : 0x556b2f));
+                const vestMat = new THREE.MeshStandardMaterial({
+                    color: vestColor,
+                    metalness: tier >= 3 ? 0.6 : 0.2,
+                    roughness: 0.4
+                });
                 const vest = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.8, 0.5), vestMat);
                 vest.position.set(0, 1.9, 0.15);
                 group.add(vest);
+            }
+
+            // Shoulder pads at level 5+
+            if (level >= 5) {
+                const padMat = new THREE.MeshStandardMaterial({
+                    color: tier === 5 ? 0xffd700 : (tier === 4 ? 0x6600cc : 0xcccccc),
+                    metalness: 0.8,
+                    roughness: 0.2
+                });
+                const padL = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.25, 0.5), padMat);
+                padL.position.set(-0.75, 2.3, 0);
+                group.add(padL);
+                const padR = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.25, 0.5), padMat);
+                padR.position.set(0.75, 2.3, 0);
+                group.add(padR);
             }
 
             // Head
@@ -1412,26 +1575,50 @@
             head.castShadow = true;
             group.add(head);
 
-            // Cap
-            const cap = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.3, 1.0), matClothesDark);
-            cap.position.set(0, 3.3, 0);
-            group.add(cap);
+            // Headgear progression
+            if (level >= 7) {
+                // Full tactical helmet
+                const helmetMat = new THREE.MeshStandardMaterial({
+                    color: tier === 5 ? 0xffd700 : 0x1a0a2e,
+                    metalness: 0.9,
+                    roughness: 0.1
+                });
+                const helmet = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.6, 1.0), helmetMat);
+                helmet.position.set(0, 3.15, 0);
+                group.add(helmet);
+
+                // Night vision goggles
+                const nvgMat = new THREE.MeshBasicMaterial({ color: tier === 5 ? 0x00ffff : 0x00ff00 });
+                const nvgL = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.3, 8), nvgMat);
+                nvgL.rotation.x = Math.PI / 2;
+                nvgL.position.set(-0.25, 2.95, 0.5);
+                group.add(nvgL);
+                const nvgR = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.3, 8), nvgMat);
+                nvgR.rotation.x = Math.PI / 2;
+                nvgR.position.set(0.25, 2.95, 0.5);
+                group.add(nvgR);
+            } else {
+                // Cap
+                const cap = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.3, 1.0), matClothesDark);
+                cap.position.set(0, 3.3, 0);
+                group.add(cap);
+
+                // Sunglasses
+                const glasses = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.25, 0.1), matGlass);
+                glasses.position.set(0, 2.9, 0.46);
+                group.add(glasses);
+            }
 
             // Headphones
             const phoneL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.6, 0.4), matBlack);
-            phoneL.position.set(-0.5, 2.85, 0);
+            phoneL.position.set(-0.55, 2.85, 0);
             group.add(phoneL);
             const phoneR = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.6, 0.4), matBlack);
-            phoneR.position.set(0.5, 2.85, 0);
+            phoneR.position.set(0.55, 2.85, 0);
             group.add(phoneR);
-            const phoneBand = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.1, 0.2), matBlack);
+            const phoneBand = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.1, 0.2), matBlack);
             phoneBand.position.set(0, 3.35, 0);
             group.add(phoneBand);
-
-            // Sunglasses
-            const glasses = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.25, 0.1), matGlass);
-            glasses.position.set(0, 2.9, 0.46);
-            group.add(glasses);
 
             // Arms
             const ArmL = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.2, 0.4), matClothesLight);
@@ -1449,38 +1636,57 @@
             // --- RIFLE ---
             const rifleGroup = new THREE.Group();
 
-            // Main Body - longer at higher levels
-            const rifleLength = 1.5 + (level * 0.3);
+            // Main Body - longer and more impressive at higher levels
+            const rifleLength = 1.5 + (level * 0.2);
             const body = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.4, rifleLength), matGunBody);
             body.position.set(0, 0, 0);
             rifleGroup.add(body);
 
-            // Barrel
-            const barrelLength = 2.5 + (level * 0.5);
-            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, barrelLength, 8), matBlack);
+            // Barrel - gets longer and more elaborate
+            const barrelLength = 2.5 + (level * 0.4);
+            const barrelRadius = tier >= 4 ? 0.1 : 0.08;
+            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(barrelRadius, barrelRadius, barrelLength, 8), matBlack);
             barrel.rotation.x = Math.PI / 2;
             barrel.position.set(0, 0.1, rifleLength / 2 + barrelLength / 2);
             rifleGroup.add(barrel);
 
-            // Muzzle Brake
-            const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.4), matBlack);
-            muzzle.position.set(0, 0.1, rifleLength / 2 + barrelLength + 0.2);
-            rifleGroup.add(muzzle);
+            // Muzzle Brake - more elaborate at higher levels
+            if (tier >= 3) {
+                const muzzleMat = new THREE.MeshStandardMaterial({ color: tier === 5 ? 0xffd700 : 0x333333, metalness: 0.9, roughness: 0.2 });
+                const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.5), muzzleMat);
+                muzzle.position.set(0, 0.1, rifleLength / 2 + barrelLength + 0.25);
+                rifleGroup.add(muzzle);
+            } else {
+                const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.4), matBlack);
+                muzzle.position.set(0, 0.1, rifleLength / 2 + barrelLength + 0.2);
+                rifleGroup.add(muzzle);
+            }
 
-            // Scope - bigger at higher levels
-            const scopeSize = 0.12 + (level * 0.03);
-            const scopeLength = 0.8 + (level * 0.2);
+            // Scope - progressively larger and more advanced
+            const scopeSize = 0.12 + (level * 0.02);
+            const scopeLength = 0.8 + (level * 0.15);
             const scope = new THREE.Mesh(new THREE.CylinderGeometry(scopeSize, scopeSize + 0.03, scopeLength, 16), matBlack);
             scope.rotation.x = Math.PI / 2;
             scope.position.set(0, 0.4, 0.2);
             rifleGroup.add(scope);
 
-            // Scope glow at level 3
-            if (level === 3) {
-                const scopeGlowMat = new THREE.MeshBasicMaterial({ color: 0xff0000, emissive: 0xff0000 });
-                const scopeGlow = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), scopeGlowMat);
-                scopeGlow.position.set(0, 0.4, 0.7);
+            // Scope glow at level 3+
+            if (level >= 3) {
+                const glowColor = tier === 5 ? 0x00ffff : (tier === 4 ? 0xff00ff : 0xff0000);
+                const scopeGlowMat = new THREE.MeshBasicMaterial({ color: glowColor });
+                const scopeGlow = new THREE.Mesh(new THREE.SphereGeometry(scopeSize * 0.6, 8, 8), scopeGlowMat);
+                scopeGlow.position.set(0, 0.4, 0.2 + scopeLength / 2);
                 rifleGroup.add(scopeGlow);
+            }
+
+            // Laser sight at level 5+
+            if (level >= 5) {
+                const laserColor = tier === 5 ? 0x00ffff : 0xff0000;
+                const laserMat = new THREE.MeshBasicMaterial({ color: laserColor });
+                const laser = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 15, 6), laserMat);
+                laser.rotation.x = Math.PI / 2;
+                laser.position.set(0.15, 0.2, 8);
+                rifleGroup.add(laser);
             }
 
             // Stock
@@ -1492,18 +1698,57 @@
             rifleGroup.position.set(0, 2.1, 0.5);
             group.add(rifleGroup);
 
-            // Ghillie suit at level 3
-            if (level === 3) {
-                const ghillieMat = new THREE.MeshLambertMaterial({ color: 0x228b22, side: THREE.DoubleSide });
-                for (let i = 0; i < 8; i++) {
-                    const strand = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.6), ghillieMat);
+            // Ghillie suit at level 5+
+            if (level >= 5) {
+                const ghillieColor = tier === 5 ? 0xffd700 : (tier === 4 ? 0x4a2a6a : 0x228b22);
+                const ghillieMat = new THREE.MeshLambertMaterial({ color: ghillieColor, side: THREE.DoubleSide });
+                const strandCount = 8 + (level - 5) * 2;
+                for (let i = 0; i < strandCount; i++) {
+                    const strand = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.6 + Math.random() * 0.3), ghillieMat);
                     strand.position.set(
-                        (Math.random() - 0.5) * 1.2,
-                        1.5 + Math.random() * 1.0,
-                        -0.4
+                        (Math.random() - 0.5) * 1.4,
+                        1.5 + Math.random() * 1.2,
+                        -0.4 - Math.random() * 0.2
                     );
                     strand.rotation.y = Math.random() * Math.PI;
+                    strand.rotation.z = (Math.random() - 0.5) * 0.3;
                     group.add(strand);
+                }
+            }
+
+            // Energy cloak at level 7+
+            if (level >= 7) {
+                const cloakColor = tier === 5 ? 0xffd700 : 0x6600cc;
+                const cloakMat = new THREE.MeshBasicMaterial({ color: cloakColor, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
+                const cloak = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 2.2), cloakMat);
+                cloak.position.set(0, 1.5, -0.5);
+                cloak.rotation.x = 0.3;
+                group.add(cloak);
+
+                // Energy glow
+                const light = new THREE.PointLight(cloakColor, 0.6, 4);
+                light.position.set(0, 2, 0);
+                group.add(light);
+            }
+
+            // Legendary floating platform at level 10
+            if (level >= 10) {
+                const platMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 1, roughness: 0.1, emissive: 0xffaa00, emissiveIntensity: 0.5 });
+                const platform = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.0, 0.15, 8), platMat);
+                platform.position.set(0, -0.1, 0);
+                group.add(platform);
+
+                // Floating runes
+                for (let i = 0; i < 4; i++) {
+                    const runeMat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+                    const rune = new THREE.Mesh(new THREE.RingGeometry(0.15, 0.2, 6), runeMat);
+                    rune.position.set(
+                        Math.cos(i * Math.PI / 2) * 1.3,
+                        0.5 + Math.random() * 0.5,
+                        Math.sin(i * Math.PI / 2) * 1.3
+                    );
+                    rune.rotation.x = Math.PI / 2;
+                    group.add(rune);
                 }
             }
 
@@ -2135,6 +2380,12 @@
             requestAnimationFrame(animate);
             controls.update();
 
+            // Stop game logic if game over
+            if (isGameOver) {
+                renderer.render(scene, camera);
+                return;
+            }
+
             // Enemy Logic
             for (let i = enemies.length - 1; i >= 0; i--) {
                 const enemy = enemies[i];
@@ -2148,12 +2399,12 @@
                 // Move towards next node
                 const target = pathNodes[enemy.nodeIndex + 1];
                 if (!target) {
-                    // Reached end
+                    // Reached end - GAME OVER!
                     enemy.active = false;
                     scene.remove(enemy.mesh);
                     enemies.splice(i, 1);
-                    // Lives --? (TODO: Add lives)
-                    continue;
+                    gameOver();
+                    return;
                 }
 
                 const dir = new THREE.Vector3().subVectors(target, enemy.mesh.position).normalize();
@@ -2163,9 +2414,12 @@
                 if (dist < 0.2) {
                     enemy.nodeIndex++;
                     if (enemy.nodeIndex >= pathNodes.length - 1) {
+                        // Reached end - GAME OVER!
                         enemy.active = false;
                         scene.remove(enemy.mesh);
                         enemies.splice(i, 1);
+                        gameOver();
+                        return;
                     }
                 } else {
                     enemy.mesh.position.add(dir.multiplyScalar(enemy.speed));
@@ -2220,8 +2474,8 @@
                     let minDist = t.range;
 
                     for (const e of enemies) {
-                        // Flying enemies can only be hit by Tesla towers
-                        if (e.isFlying && t.type !== 'tesla') continue;
+                        // Flying enemies can only be hit by Tesla and Sniper towers
+                        if (e.isFlying && t.type !== 'tesla' && t.type !== 'sniper') continue;
 
                         const dist = t.mesh.position.distanceTo(e.mesh.position);
                         if (dist < minDist) {
