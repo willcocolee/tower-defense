@@ -1976,10 +1976,10 @@
             scene.remove(t.mesh);
 
             let newMesh;
-            if (t.type === 'sniper') newMesh = createSniperMesh();
+            if (t.type === 'sniper') newMesh = createSniperMesh(t.level);
             if (t.type === 'pyro') newMesh = createPyroMesh(t.level);
             if (t.type === 'tesla') newMesh = createTeslaMesh(t.level);
-            if (t.type === 'scout') newMesh = createScoutMesh();
+            if (t.type === 'scout') newMesh = createScoutMesh(t.level);
             // Fallback
             if (!newMesh) {
                 // Basic
