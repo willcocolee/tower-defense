@@ -567,18 +567,25 @@
             void_normal: { name: 'Void', hpMult: 4.0, speedMult: 1.1, size: 0.9, color: 0x6600cc, isVoid: true },
             void_speedster: { name: 'Void Speedster', hpMult: 3.0, speedMult: 2.5, size: 0.7, color: 0x9933ff, isVoid: true },
             void_giant: { name: 'Void Giant', hpMult: 12.0, speedMult: 0.55, size: 2.0, color: 0x4400aa, isVoid: true },
-            void_boss: { name: 'VOID EMPEROR', hpMult: 60.0, speedMult: 0.4, size: 3.5, color: 0x8800ff, isVoid: true },
+            void_boss: { name: 'VOID EMPEROR', hpMult: 50.0, speedMult: 0.3, size: 3.5, color: 0x220033, isVoid: true },
             // Heavenly variants (Wave 100+)
-            heavenly_normal: { name: 'Celestial', hpMult: 5.0, speedMult: 1.2, size: 1.0, color: 0xffdd88, isHeavenly: true },
-            heavenly_speedster: { name: 'Seraph', hpMult: 4.0, speedMult: 2.8, size: 0.8, color: 0xffee99, isHeavenly: true },
-            heavenly_giant: { name: 'Archangel', hpMult: 15.0, speedMult: 0.6, size: 2.2, color: 0xffffff, isHeavenly: true },
-            heavenly_boss: { name: 'DIVINE TITAN', hpMult: 80.0, speedMult: 0.45, size: 4.0, color: 0xffffaa, isHeavenly: true }
+            heavenly_normal: { name: 'Angel', hpMult: 6.0, speedMult: 1.2, size: 0.9, color: 0xffffaa, isHeavenly: true },
+            heavenly_speedster: { name: 'Seraph', hpMult: 4.0, speedMult: 3.0, size: 0.7, color: 0xffffff, isHeavenly: true },
+            heavenly_giant: { name: 'Guardian', hpMult: 12.0, speedMult: 0.5, size: 2.2, color: 0xffcc00, isHeavenly: true },
+            heavenly_boss: { name: 'DIVINE TITAN', hpMult: 80.0, speedMult: 0.25, size: 4.0, color: 0xffaa00, isHeavenly: true },
+            // Cyber variants (Wave 200+)
+            cyber_normal: { name: 'Cyber Drone', hpMult: 10.0, speedMult: 1.3, size: 0.8, color: 0x00ff00, isCyber: true },
+            cyber_speedster: { name: 'Cyber Runner', hpMult: 6.0, speedMult: 3.5, size: 0.6, color: 0x00ffff, isCyber: true },
+            cyber_giant: { name: 'Cyber Tank', hpMult: 20.0, speedMult: 0.4, size: 2.5, color: 0xbf00ff, isCyber: true },
+            cyber_gunner: { name: 'Cyber Gunner', hpMult: 8.0, speedMult: 0.8, size: 1.0, color: 0xff00ff, isCyber: true, isGunner: true },
+            cyber_boss: { name: 'CYBER OVERLORD', hpMult: 150.0, speedMult: 0.2, size: 5.0, color: 0xff0000, isCyber: true }
         };
 
         let isLavaRealm = false; // Tracks if we've entered lava realm
         let isIceRealm = false; // Tracks if we've entered ice realm
         let isVoidRealm = false; // Tracks if we've entered void realm
         let isHeavenlyRealm = false; // Tracks if we've entered heavenly realm
+        let isCyberRealm = false; // Tracks if we've entered cyber realm
 
         // Store biome objects for cleanup
         let biomeObjects = [];
@@ -603,7 +610,9 @@
                 else if (roll < 0.25) type = 'giant';
 
                 // Use realm variants based on wave
-                if (wave >= 100) {
+                if (wave >= 200) {
+                    type = 'cyber_' + type;
+                } else if (wave >= 100) {
                     type = 'heavenly_' + type;
                 } else if (wave >= 75) {
                     type = 'void_' + type;
@@ -760,6 +769,34 @@
                 mesh.add(divineLight);
             }
 
+            // Cyber enemy effects
+            if (typeData.isCyber) {
+                // Glowing lines/circuits
+                const circuitMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.6 });
+                const circuit1 = new THREE.Mesh(new THREE.CylinderGeometry(typeData.size * 0.8, typeData.size * 0.8, 0.1, 16), circuitMat);
+                circuit1.position.y = typeData.size * 0.5;
+                mesh.add(circuit1);
+                const circuit2 = new THREE.Mesh(new THREE.CylinderGeometry(typeData.size * 0.8, typeData.size * 0.8, 0.1, 16), circuitMat);
+                circuit2.rotation.x = Math.PI / 2;
+                circuit2.position.z = typeData.size * 0.5;
+                mesh.add(circuit2);
+
+                // Cyber glow
+                const cyberLight = new THREE.PointLight(0x00ffff, 1.2, typeData.size * 5);
+                mesh.add(cyberLight);
+
+                // If it's a gunner, add a small gun
+                if (typeData.isGunner) {
+                    const gunMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.8, roughness: 0.2 });
+                    const gunBody = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.5), gunMat);
+                    gunBody.position.set(typeData.size * 0.5, 0, typeData.size * 0.5);
+                    mesh.add(gunBody);
+                    const gunBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.8), gunMat);
+                    gunBarrel.position.set(typeData.size * 0.5, 0, typeData.size * 0.9);
+                    mesh.add(gunBarrel);
+                }
+            }
+
             scene.add(mesh);
 
             // Calculate HP (balanced for early waves)
@@ -784,31 +821,35 @@
                 damageReduction: mutData.damageReduction || 0,
                 regenRate: mutData.regenRate || 0,
                 isFlying: mutData.isFlying || false,
+                isGunner: typeData.isGunner || false, // Add isGunner property
                 baseY: typeData.size + (mutData.isFlying ? mutData.height : 0)
             });
         }
 
         function spawnBoss() {
-            // Use realm boss based on wave
-            let bossType = 'boss';
-            let bossName = '⚠️ BOSS';
+            // Use realm boss        function spawnBoss() {
+            let type = 'boss';
+            let name = 'MEGA BOSS';
 
-            if (wave >= 100) {
-                bossType = 'heavenly_boss';
-                bossName = '✨ DIVINE TITAN';
+            if (wave >= 200) {
+                type = 'cyber_boss';
+                name = 'CYBER OVERLORD';
+            } else if (wave >= 100) {
+                type = 'heavenly_boss';
+                name = 'DIVINE TITAN';
             } else if (wave >= 75) {
-                bossType = 'void_boss';
-                bossName = '🕳️ VOID EMPEROR';
+                type = 'void_boss';
+                name = 'VOID EMPEROR';
             } else if (wave >= 50) {
-                bossType = 'frozen_boss';
-                bossName = '❄️ BLIZZARD LORD';
+                type = 'frozen_boss';
+                name = '❄️ BLIZZARD LORD';
             } else if (wave >= 25) {
-                bossType = 'molten_boss';
-                bossName = '🔥 INFERNO BOSS';
+                type = 'molten_boss';
+                name = '🔥 INFERNO BOSS';
             }
 
-            spawnEnemy(bossType, 'none');
-            showError(`${bossName} INCOMING! ⚠️`);
+            spawnEnemy(type, 'none');
+            showError(`⚠️ ${name} INCOMING! ⚠️`);
         }
 
         // Transform terrain to lava realm
@@ -1020,21 +1061,21 @@
 
             showError('✨ THE HEAVENS OPEN... ✨');
 
-            // Change ground to heavenly colors (bright gold/white)
-            groundPlane.material.color.setHex(0xffeecc);
-            groundPlane.material.emissive = new THREE.Color(0xffdd88);
-            groundPlane.material.emissiveIntensity = 0.3;
+            // Change ground to heavenly colors (bright gold/white) - TONED DOWN
+            groundPlane.material.color.setHex(0xeeddcc); // Use slightly darker cream
+            groundPlane.material.emissive = new THREE.Color(0xccaa66); // Darker gold emissive
+            groundPlane.material.emissiveIntensity = 0.15; // Reduced from 0.3
 
-            // Change scene background and fog (bright golden sky)
-            scene.background = new THREE.Color(0xffeedd);
-            scene.fog = new THREE.Fog(0xffeedd, 20, 100);
+            // Change scene background and fog (bright but not blinding)
+            scene.background = new THREE.Color(0xffeecc); // Warmer, less harsh white
+            scene.fog = new THREE.Fog(0xffeecc, 20, 100);
 
             // Change terrain objects to divine marble
             terrainObjects.forEach(obj => {
                 obj.material = new THREE.MeshStandardMaterial({
-                    color: 0xffffff,
-                    emissive: 0xffdd88,
-                    emissiveIntensity: 0.4,
+                    color: 0xffffee,
+                    emissive: 0xccaa66,
+                    emissiveIntensity: 0.2, // Reduced from 0.4
                     roughness: 0.2,
                     metalness: 0.3
                 });
@@ -1077,6 +1118,70 @@
             }
         }
 
+        // Transform terrain to cyber realm
+        function transformToCyberRealm() {
+            if (isCyberRealm) return;
+            isCyberRealm = true;
+
+            cleanupBiomeObjects();
+
+            showError('💾 THE CYBER REALM AWAKENS... 💾');
+
+            // Change ground to cyber colors (dark blue/purple with glowing lines)
+            groundPlane.material.color.setHex(0x0a0a1a);
+            groundPlane.material.emissive = new THREE.Color(0x000033);
+            groundPlane.material.emissiveIntensity = 0.5;
+
+            // Change scene background and fog (dark blue/purple)
+            scene.background = new THREE.Color(0x05050a);
+            scene.fog = new THREE.Fog(0x05050a, 15, 70);
+
+            // Change terrain objects to metallic/glowing structures
+            terrainObjects.forEach(obj => {
+                obj.material = new THREE.MeshStandardMaterial({
+                    color: 0x1a1a2e,
+                    emissive: 0x000055,
+                    emissiveIntensity: 0.7,
+                    roughness: 0.3,
+                    metalness: 0.9
+                });
+            });
+
+            // Add glowing cyber grids/lines on the ground
+            for (let i = 0; i < 20; i++) {
+                const lineMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.6, side: THREE.DoubleSide });
+                const lineGeom = new THREE.PlaneGeometry(1 + Math.random() * 5, 0.1);
+                const line = new THREE.Mesh(lineGeom, lineMat);
+                line.rotation.x = -Math.PI / 2;
+                line.rotation.z = Math.random() * Math.PI;
+                line.position.set(
+                    (Math.random() - 0.5) * 80,
+                    0.07,
+                    (Math.random() - 0.5) * 80
+                );
+                scene.add(line);
+                biomeObjects.push(line);
+
+                // Add small glowing cubes/nodes
+                const nodeMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, emissive: 0x00ff00, emissiveIntensity: 1.0 });
+                const node = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), nodeMat);
+                node.position.set(
+                    (Math.random() - 0.5) * 80,
+                    0.25,
+                    (Math.random() - 0.5) * 80
+                );
+                scene.add(node);
+                biomeObjects.push(node);
+
+                // Add cyber light
+                const cyberLight = new THREE.PointLight(0x00ff00, 0.5, 8);
+                cyberLight.position.copy(node.position);
+                cyberLight.position.y = 1;
+                scene.add(cyberLight);
+                biomeObjects.push(cyberLight);
+            }
+        }
+
         const btnStartWave = document.getElementById('btnStartWave');
         const waveDisplay = document.getElementById('waveDisplay');
 
@@ -1092,39 +1197,33 @@
             // Wave Logic: 5 + Wave Index enemies
             enemiesToSpawn = 5 + Math.floor(wave * 1.5);
 
-            // Transform to lava realm at wave 25
-            if (wave === 25) {
-                transformToLavaRealm();
-            }
+            // Realm Transformations
+            if (wave === 25) transformToLavaRealm();
+            if (wave === 50) transformToIceRealm();
+            if (wave === 75) transformToVoidRealm();
+            if (wave === 100) transformToHeavenlyRealm();
+            if (wave === 200) transformToCyberRealm();
 
-            // Transform to ice realm at wave 50
-            if (wave === 50) {
-                transformToIceRealm();
-            }
-
-            // Transform to void realm at wave 75
-            if (wave === 75) {
-                transformToVoidRealm();
-            }
-
-            // Transform to heavenly realm at wave 100
-            if (wave === 100) {
-                transformToHeavenlyRealm();
-            }
-
-            // Boss wave every 10 waves
-            if (wave % 10 === 0) {
+            // Boss spawn check
+            if (wave % 25 === 0) {
                 spawnBoss();
-                showError(`⚠️ BOSS WAVE ${wave}! ⚠️`);
-            } else if (wave === 100) {
-                showError(`✨ WAVE 100: HEAVENLY REALM BEGINS! ✨`);
-            } else if (wave === 75) {
-                showError(`🕳️ WAVE 75: VOID REALM BEGINS! 🕳️`);
-            } else if (wave === 50) {
-                showError(`❄️ WAVE 50: ICE REALM BEGINS! ❄️`);
-            } else if (wave === 25) {
-                showError(`🔥 WAVE 25: LAVA REALM BEGINS! 🔥`);
             } else {
+                enemiesToSpawn = 5 + Math.floor(wave * 1.2);
+                waveState = 'SPAWNING';
+            }
+
+            // Wave Start Messages
+            if (wave === 25) {
+                showError("🔥 THE LAVA REALM 🔥");
+            } else if (wave === 50) {
+                showError("❄️ THE FROZEN REALM ❄️");
+            } else if (wave === 75) {
+                showError("🕳️ THE VOID REALM 🕳️");
+            } else if (wave === 100) {
+                showError("✨ THE HEAVENLY REALM ✨");
+            } else if (wave === 200) {
+                showError("💾 THE CYBER REALM 💾");
+            } else if (wave % 25 !== 0) {
                 showError(`Wave ${wave} Started!`);
             }
 
@@ -2404,9 +2503,7 @@
         scene.add(ghostRing);
         ghostRing.visible = false;
 
-        // ... (logic) ...
-
-        // --- ANIMATION LOOP ---
+        // ... (logic)                // --- ANIMATION LOOP ---
         function animate() {
             requestAnimationFrame(animate);
             controls.update();
@@ -2424,6 +2521,43 @@
                 for (let i = enemies.length - 1; i >= 0; i--) {
                     const enemy = enemies[i];
                     if (!enemy.active) continue;
+
+                    // Cyber Gunner Logic (Stun Towers)
+                    if (enemy.isGunner && speedTick === 0) { // Only check once per frame, not per speed tick to save perf
+                        if (!enemy.lastShot) enemy.lastShot = 0;
+                        if (Date.now() - enemy.lastShot > 3000) { // Shoot every 3 seconds
+                            // Find a nearby tower
+                            let targetTower = null;
+                            let minTowerDist = 15;
+                            for (const t of towers) {
+                                if (t.stunned) continue; // Don't stun already stunned towers
+                                const dist = enemy.mesh.position.distanceTo(t.mesh.position);
+                                if (dist < minTowerDist) {
+                                    minTowerDist = dist;
+                                    targetTower = t;
+                                }
+                            }
+
+                            if (targetTower) {
+                                // Shoot!
+                                enemy.lastShot = Date.now();
+                                targetTower.stunned = true;
+                                targetTower.stunTimer = 180; // Stun for ~3 seconds (at 60fps)
+
+                                // Visual Beam
+                                const lineGeom = new THREE.BufferGeometry().setFromPoints([
+                                    enemy.mesh.position.clone().add(new THREE.Vector3(0, 1, 0)),
+                                    targetTower.mesh.position.clone().add(new THREE.Vector3(0, 2, 0))
+                                ]);
+                                const lineMat = new THREE.LineBasicMaterial({ color: 0xff00ff });
+                                const beam = new THREE.Line(lineGeom, lineMat);
+                                scene.add(beam);
+                                setTimeout(() => scene.remove(beam), 200);
+
+                                showError("⚠️ TOWER HACKED! ⚠️");
+                            }
+                        }
+                    }
 
                     // Regeneration mutation
                     if (enemy.regenRate && enemy.hp < enemy.maxHp) {
@@ -2501,6 +2635,32 @@
 
                 // Tower Logic (Shooting)
                 towers.forEach(t => {
+                    // Handle Stun
+                    if (t.stunned) {
+                        t.stunTimer--;
+                        // Visual indicator for stun
+                        if (!t.stunIndicator) {
+                            const ring = new THREE.Mesh(
+                                new THREE.RingGeometry(1, 1.2, 8),
+                                new THREE.MeshBasicMaterial({ color: 0xff00ff, side: THREE.DoubleSide })
+                            );
+                            ring.rotation.x = -Math.PI / 2;
+                            ring.position.y = 3;
+                            t.mesh.add(ring);
+                            t.stunIndicator = ring;
+                        }
+                        t.stunIndicator.rotation.z += 0.1;
+
+                        if (t.stunTimer <= 0) {
+                            t.stunned = false;
+                            if (t.stunIndicator) {
+                                t.mesh.remove(t.stunIndicator);
+                                t.stunIndicator = null;
+                            }
+                        }
+                        return; // Skip shooting if stunned
+                    }
+
                     if (t.cooldown > 0) t.cooldown--;
                     else {
                         // Find target
