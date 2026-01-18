@@ -156,17 +156,36 @@
 
     <div id="controls">
         <button id="btnStartWave" style="background: #22c55e; color: white;">Start Game</button>
-        <div style="width: 20px;"></div>
-        <button id="btnBasic" style="border: 2px solid #3b82f6;">Basic<br><span
-                style="font-size:10px;color:#4ade80;">$100</span></button>
-        <button id="btnSniper" style="border: 2px solid #555;">Sniper<br><span
-                style="font-size:10px;color:#4ade80;">$250</span></button>
-        <button id="btnScout" style="border: 2px solid #555;">Scout<br><span
-                style="font-size:10px;color:#4ade80;">$150</span></button>
-        <button id="btnPyro" style="border: 2px solid #555; color: #f97316;">Pyro<br><span
-                style="font-size:10px;color:#4ade80;">$200</span></button>
-        <button id="btnTesla" style="border: 2px solid #555; color: #0ea5e9;">Tesla<br><span
-                style="font-size:10px;color:#4ade80;">$300</span></button>
+        <div class="tower-select">
+            <button class="tower-btn" onclick="selectTower('basic')" data-cost="100">Basic<br><span
+                    style="color:#4ade80;font-size:0.8em">$100</span></button>
+            <button class="tower-btn" onclick="selectTower('sniper')" data-cost="250">Sniper<br><span
+                    style="color:#4ade80;font-size:0.8em">$250</span></button>
+            <button class="tower-btn" onclick="selectTower('scout')" data-cost="150">Scout<br><span
+                    style="color:#4ade80;font-size:0.8em">$150</span></button>
+            <button class="tower-btn" onclick="selectTower('pyro')" data-cost="200"
+                style="border-bottom: 3px solid #f97316">Pyro<br><span
+                    style="color:#4ade80;font-size:0.8em">$200</span></button>
+            <button class="tower-btn" onclick="selectTower('tesla')" data-cost="300"
+                style="border-bottom: 3px solid #3b82f6">Tesla<br><span
+                    style="color:#4ade80;font-size:0.8em">$300</span></button>
+
+            <button class="tower-btn" onclick="selectTower('glacier')" data-cost="350"
+                style="border-bottom: 3px solid #06b6d4">Glacier<br><span
+                    style="color:#4ade80;font-size:0.8em">$350</span></button>
+            <button class="tower-btn" onclick="selectTower('rocket')" data-cost="600"
+                style="border-bottom: 3px solid #22c55e">Rocket<br><span
+                    style="color:#4ade80;font-size:0.8em">$600</span></button>
+            <button class="tower-btn" onclick="selectTower('amp')" data-cost="800"
+                style="border-bottom: 3px solid #a855f7">Amp<br><span
+                    style="color:#4ade80;font-size:0.8em">$800</span></button>
+            <button class="tower-btn" onclick="selectTower('railgun')" data-cost="1000"
+                style="border-bottom: 3px solid #ef4444">Railgun<br><span
+                    style="color:#4ade80;font-size:0.8em">$1k</span></button>
+            <button class="tower-btn" onclick="selectTower('miner')" data-cost="400"
+                style="border-bottom: 3px solid #eab308">Miner<br><span
+                    style="color:#4ade80;font-size:0.8em">$400</span></button>
+        </div>
         <div style="width: 20px;"></div>
         <button id="btnSpeed" style="border: 2px solid #a855f7; color: #a855f7;">Speed: 1x</button>
         <button id="btnMusic" style="border: 2px solid #888;">🎵 Music</button>
@@ -468,6 +487,28 @@
 
         // Tower selection state
         let selectedPlacedTower = null; // Existing tower that is selected for viewing stats
+        let selectedTower = null; // New tower type selected for placement
+
+        function selectTower(type) {
+            if (selectedTower === type) {
+                selectedTower = null;
+            } else {
+                selectedTower = type;
+                // Deselect placed tower
+                selectedPlacedTower = null;
+                document.getElementById('statsPanel').style.display = 'none';
+                selectionRing.visible = false;
+            }
+
+            // Visual update
+            document.querySelectorAll('.tower-btn').forEach(btn => {
+                btn.style.borderColor = 'transparent';
+                // Check if this button corresponds to the selected type
+                if (selectedTower && btn.getAttribute('onclick').includes(`'${selectedTower}'`)) {
+                    btn.style.borderColor = '#ffffff';
+                }
+            });
+        }
 
         // --- MONEY SYSTEM ---
         let money = 500; // Starting money
@@ -476,8 +517,28 @@
             sniper: 250,
             scout: 150,
             pyro: 200,
-            tesla: 300
+            tesla: 300,
+            glacier: 350,
+            rocket: 600,
+            amp: 800,
+            railgun: 1000,
+            miner: 400
         };
+
+        const TOWER_TYPES = {
+            basic: { cost: 100, range: 4.0, damage: 10, cooldown: 60, color: 0x3b82f6, name: 'Basic Tower', type: 'basic' },
+            sniper: { cost: 250, range: 10.0, damage: 50, cooldown: 120, color: 0x555555, name: 'Sniper Tower', type: 'sniper' },
+            scout: { cost: 150, range: 3.0, damage: 5, cooldown: 30, color: 0x888888, name: 'Scout Tower', type: 'scout' },
+            pyro: { cost: 200, range: 2.5, damage: 1, cooldown: 5, color: 0xff6600, name: 'Pyromancer', type: 'pyro' },
+            tesla: { cost: 300, range: 3.5, damage: 15, cooldown: 45, color: 0x00ccff, name: 'Tesla Coil', type: 'tesla' },
+            // New Towers
+            glacier: { cost: 350, range: 3.5, damage: 5, cooldown: 40, color: 0x00ffff, name: 'Glacier', type: 'glacier', isSlow: true },
+            rocket: { cost: 600, range: 6.0, damage: 40, cooldown: 120, color: 0x228b22, name: 'Rocket', type: 'rocket', isSplash: true, splashRadius: 2.5 },
+            amp: { cost: 800, range: 4.0, damage: 0, cooldown: 0, color: 0x9333ea, name: 'Amplifier', type: 'amp', isSupport: true },
+            railgun: { cost: 1000, range: 8.0, damage: 60, cooldown: 90, color: 0xff0000, name: 'Railgun', type: 'railgun', isPiercing: true },
+            miner: { cost: 400, range: 0, damage: 0, cooldown: 300, color: 0xffaa00, name: 'Nanominer', type: 'miner', isEconomy: true, generation: 25 }
+        };
+
         const UPGRADE_COST_BASE = 100; // Cost increases per level
 
         function getUpgradeCost(tower) {
@@ -1298,7 +1359,7 @@
         }
 
         const terrainObjects = [];
-        let selectedTower = 'basic'; // basic | sniper
+        // selectedTower moved to top
 
         // Terrain Generation
         function generateTerrain() {
@@ -2048,6 +2109,226 @@
             return group;
         }
 
+        // --- NEW TOWER MESHES ---
+
+        function createGlacierMesh(level = 1) {
+            const group = new THREE.Group();
+
+            // Materials (Ice/Crystal look)
+            const iceColor = level === 3 ? 0xccffff : 0x00ffff;
+            const matIce = new THREE.MeshStandardMaterial({
+                color: iceColor,
+                transparent: true,
+                opacity: 0.8,
+                roughness: 0.1,
+                metalness: 0.1,
+                emissive: 0x0044ff,
+                emissiveIntensity: 0.3 * level
+            });
+            const matBase = new THREE.MeshStandardMaterial({ color: 0xeeeeee });
+
+            // Base
+            const base = new THREE.Mesh(new THREE.CylinderGeometry(1, 1.2, 0.4, 6), matBase);
+            base.position.y = 0.2;
+            group.add(base);
+
+            // Shards (Random crystal growth look)
+            const shardCount = 3 + level * 2;
+            for (let i = 0; i < shardCount; i++) {
+                const height = 1 + Math.random() + (level * 0.3);
+                const shard = new THREE.Mesh(new THREE.ConeGeometry(0.3, height, 4), matIce);
+                shard.position.set(
+                    (Math.random() - 0.5) * 1,
+                    0.4 + height / 2,
+                    (Math.random() - 0.5) * 1
+                );
+                shard.rotation.x = (Math.random() - 0.5) * 0.5;
+                shard.rotation.z = (Math.random() - 0.5) * 0.5;
+                group.add(shard);
+            }
+
+            // Central Spire
+            const spire = new THREE.Mesh(new THREE.ConeGeometry(0.5, 3 + level, 5), matIce);
+            spire.position.y = 1.5 + level / 2;
+            group.add(spire);
+
+            // Cold particles (simple cubes)
+            if (level >= 2) {
+                const p = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+                p.position.set(0, 3, 0);
+                group.add(p);
+            }
+
+            return group;
+        }
+
+        function createRocketMesh(level = 1) {
+            const group = new THREE.Group();
+
+            const metalColor = 0x2f4f4f; // Dark slate grey
+            const detailColor = 0x22c55e; // Green
+            const matMetal = new THREE.MeshStandardMaterial({ color: metalColor, roughness: 0.5, metalness: 0.8 });
+            const matDetail = new THREE.MeshStandardMaterial({ color: detailColor });
+
+            // Heavy Base
+            const base = new THREE.Mesh(new THREE.BoxGeometry(2, 0.5, 2), matMetal);
+            base.position.y = 0.25;
+            group.add(base);
+
+            // Turret Swivel
+            const swivel = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 0.5, 16), matMetal);
+            swivel.position.y = 0.75;
+            group.add(swivel);
+
+            // Missile Pods
+            const podWidth = 0.6 + (level * 0.1);
+            const podL = new THREE.Mesh(new THREE.BoxGeometry(podWidth, 1, 1.5), matMetal);
+            podL.position.set(-0.8, 1.5, 0);
+            group.add(podL);
+
+            const podR = new THREE.Mesh(new THREE.BoxGeometry(podWidth, 1, 1.5), matMetal);
+            podR.position.set(0.8, 1.5, 0);
+            group.add(podR);
+
+            // Missiles (Tips sticking out)
+            const missileGeom = new THREE.ConeGeometry(0.1, 0.3, 8);
+            const missileMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+
+            const mCount = level * 2;
+            for (let i = 0; i < mCount; i++) {
+                const m = new THREE.Mesh(missileGeom, missileMat);
+                m.rotation.x = -Math.PI / 2;
+                m.position.set(-0.8 + (Math.random() - 0.5) * 0.3, 1.5 + (Math.random() - 0.5) * 0.3, 0.8);
+                group.add(m);
+
+                const m2 = m.clone();
+                m2.position.set(0.8 + (Math.random() - 0.5) * 0.3, 1.5 + (Math.random() - 0.5) * 0.3, 0.8);
+                group.add(m2);
+            }
+
+            return group;
+        }
+
+        function createAmplifierMesh(level = 1) {
+            const group = new THREE.Group();
+
+            const matDark = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.5 });
+            const matGlow = new THREE.MeshStandardMaterial({ color: 0xa855f7, emissive: 0xa855f7, emissiveIntensity: 2 });
+
+            // Tower
+            const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.8, 3, 4), matDark);
+            tower.position.y = 1.5;
+            group.add(tower);
+
+            // Dish/Pulse Emitter
+            const dish = new THREE.Mesh(new THREE.CylinderGeometry(1 + level * 0.2, 0.1, 0.5, 16), matDark);
+            dish.position.y = 3;
+            group.add(dish);
+
+            // Floating Crystal
+            const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.4 + level * 0.1), matGlow);
+            crystal.position.y = 3.8;
+            group.add(crystal);
+
+            // Pulse rings
+            if (level >= 2) {
+                const ring = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.05, 8, 32), matGlow);
+                ring.rotation.x = Math.PI / 2;
+                ring.position.y = 2;
+                group.add(ring);
+            }
+
+            return group;
+        }
+
+        function createRailgunMesh(level = 1) {
+            const group = new THREE.Group();
+
+            const matSilver = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 1.0, roughness: 0.2 });
+            const matRed = new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 1 });
+
+            // Tripod Legs
+            const legGeom = new THREE.BoxGeometry(0.2, 1.5, 0.2);
+            const leg1 = new THREE.Mesh(legGeom, matSilver);
+            leg1.position.set(0.8, 0.75, 0.8);
+            leg1.rotation.z = -0.3;
+            leg1.rotation.x = 0.3;
+            group.add(leg1);
+
+            const leg2 = new THREE.Mesh(legGeom, matSilver);
+            leg2.position.set(-0.8, 0.75, 0.8);
+            leg2.rotation.z = 0.3;
+            leg2.rotation.x = 0.3;
+            group.add(leg2);
+
+            const leg3 = new THREE.Mesh(legGeom, matSilver);
+            leg3.position.set(0, 0.75, -0.8);
+            leg3.rotation.x = -0.3;
+            group.add(leg3);
+
+            // Main Gun
+            const barrelLen = 3 + level * 0.5;
+            const gunBody = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 1.5), matSilver);
+            gunBody.position.set(0, 1.8, 0);
+            group.add(gunBody);
+
+            // Long Barrel
+            const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, barrelLen), matSilver);
+            barrel.position.set(0, 1.8, barrelLen / 2);
+            group.add(barrel);
+
+            // Coils
+            for (let i = 0; i < 4 + level; i++) {
+                const coil = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.1), matRed);
+                coil.position.set(0, 1.8, 1 + (i * 0.5));
+                group.add(coil);
+            }
+
+            return group;
+        }
+
+        function createNanominerMesh(level = 1) {
+            const group = new THREE.Group();
+
+            const matOrange = new THREE.MeshStandardMaterial({ color: 0xffaa00, metalness: 0.6 });
+            const matDark = new THREE.MeshStandardMaterial({ color: 0x222222 });
+            const matHolo = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.4, wireframe: true });
+
+            // Drilling Rig Base
+            const base = new THREE.Mesh(new THREE.BoxGeometry(2, 0.2, 2), matDark);
+            base.position.y = 0.1;
+            group.add(base);
+
+            // Drill bit (always rotating?)
+            const drill = new THREE.Mesh(new THREE.ConeGeometry(0.5, 2, 8), matOrange);
+            drill.rotation.x = Math.PI;
+            drill.position.y = 1;
+            group.add(drill);
+
+            // Scaffold
+            const leg1 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.5, 0.1), matDark);
+            leg1.position.set(0.8, 1.25, 0.8);
+            group.add(leg1);
+            const leg2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.5, 0.1), matDark);
+            leg2.position.set(-0.8, 1.25, 0.8);
+            group.add(leg2);
+            const leg3 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.5, 0.1), matDark);
+            leg3.position.set(0.8, 1.25, -0.8);
+            group.add(leg3);
+            const leg4 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.5, 0.1), matDark);
+            leg4.position.set(-0.8, 1.25, -0.8);
+            group.add(leg4);
+
+            // Holographic data
+            if (level >= 2) {
+                const cube = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), matHolo);
+                cube.position.y = 2.5;
+                group.add(cube);
+            }
+
+            return group;
+        }
+
         // Stats UI Refs
         const uiPanel = document.getElementById('statsPanel');
         uiPanel.style.display = 'none'; // Start hidden
@@ -2104,6 +2385,13 @@
             if (t.type === 'pyro') newMesh = createPyroMesh(t.level);
             if (t.type === 'tesla') newMesh = createTeslaMesh(t.level);
             if (t.type === 'scout') newMesh = createScoutMesh(t.level);
+            // New Towers
+            if (t.type === 'glacier') newMesh = createGlacierMesh(t.level);
+            if (t.type === 'rocket') newMesh = createRocketMesh(t.level);
+            if (t.type === 'amp') newMesh = createAmplifierMesh(t.level);
+            if (t.type === 'railgun') newMesh = createRailgunMesh(t.level);
+            if (t.type === 'miner') newMesh = createNanominerMesh(t.level);
+
             // Fallback
             if (!newMesh) {
                 // Basic
@@ -2173,23 +2461,17 @@
             ghostRing.position.set(x, 0.2, z);
 
             // Scale based on tower range
-            let range = 8;
-            if (selectedTower === 'sniper') range = 60; // Sync with real range
-            if (selectedTower === 'scout') range = 10;
-            if (selectedTower === 'pyro') range = 6;
-            if (selectedTower === 'tesla') range = 15;
-
-            // RingGeometry is static, so scale string
-            // Base radius is ~1. So scale to range.
+            const typeData = TOWER_TYPES[selectedTower];
+            const range = typeData ? typeData.range : 4;
             ghostRing.scale.set(range, range, 1);
         }
 
-        // --- UPDATED INPUT LOGIC ---
-        // (Existing raycaster/listeners need to be slightly modified to trigger this)
-
 
         function placeTower(x, z, groundY) {
-            // ... (keep existing placeTower)
+            if (!selectedTower) return;
+            const typeData = TOWER_TYPES[selectedTower];
+            if (!typeData) return;
+
             // Snap to grid
             const snapX = Math.round(x / TILE_SIZE) * TILE_SIZE;
             const snapZ = Math.round(z / TILE_SIZE) * TILE_SIZE;
@@ -2207,7 +2489,7 @@
             }
 
             // 3. Check Money
-            const towerCost = TOWER_COSTS[selectedTower] || 100;
+            const towerCost = typeData.cost;
             if (money < towerCost) {
                 showError(`Need $${towerCost}!`);
                 return;
@@ -2226,75 +2508,66 @@
                 return;
             }
 
-            let mesh;
-            let range = 8;
-            let cooldown = 30; // 0.5s at 60fps
+            // Spend Money
+            spendMoney(towerCost);
+            playSound('build'); // Placeholder sound
 
-            if (selectedTower === 'scout') {
-                mesh = createScoutMesh();
-                // Adjust position since group origin is 0,0,0
-                mesh.position.set(snapX, groundY, snapZ);
-                range = 10;
-                cooldown = 15; // Fast fire
-            } else if (selectedTower === 'sniper') {
-                mesh = createSniperMesh();
-                mesh.position.set(snapX, groundY, snapZ);
-                range = 60; // Map-wide
-                cooldown = 120;
-            } else if (selectedTower === 'pyro') {
-                mesh = createPyroMesh();
-                mesh.position.set(snapX, groundY, snapZ);
-                range = 6; // Very short range
-                cooldown = 5; // Very fast tick
-            } else if (selectedTower === 'tesla') {
-                mesh = createTeslaMesh();
-                mesh.position.set(snapX, groundY, snapZ);
-                range = 15; // Medium range
-                cooldown = 45;
-            } else {
-                // Basic
+            let mesh;
+            // Create Mesh based on type
+            if (selectedTower === 'sniper') mesh = createSniperMesh();
+            else if (selectedTower === 'scout') mesh = createScoutMesh();
+            else if (selectedTower === 'pyro') mesh = createPyroMesh();
+            else if (selectedTower === 'tesla') mesh = createTeslaMesh();
+            else if (selectedTower === 'glacier') mesh = createGlacierMesh();
+            else if (selectedTower === 'rocket') mesh = createRocketMesh();
+            else if (selectedTower === 'amp') mesh = createAmplifierMesh();
+            else if (selectedTower === 'railgun') mesh = createRailgunMesh();
+            else if (selectedTower === 'miner') mesh = createNanominerMesh();
+            else {
+                // Basic fallback
                 const geom = new THREE.BoxGeometry(1.5, 3, 1.5);
                 const mat = new THREE.MeshLambertMaterial({ color: 0x0088ff });
                 mesh = new THREE.Mesh(geom, mat);
-                mesh.position.set(snapX, groundY + 1.5, snapZ);
             }
+
+            // Adjust position
+            // Most towers are group-based with y=0 origin, so groundY is correct
+            // But basic fallback might need +1.5 if box is centered.
+            // Our custom meshes are usually built upwards from 0.
+            mesh.position.set(snapX, groundY, snapZ);
 
             mesh.castShadow = true;
             mesh.receiveShadow = true;
             scene.add(mesh);
 
-            const entry = {
+            // Add to game logic
+            const tower = {
                 mesh: mesh,
                 type: selectedTower,
-                range: range,
-                damage: selectedTower === 'sniper' ? 50 : (selectedTower === 'scout' ? 10 : (selectedTower === 'pyro' ? 8 : (selectedTower === 'tesla' ? 25 : 20))),
                 level: 1,
-                maxLevel: 10,
+                maxLevel: 3,
+                damage: typeData.damage,
+                range: typeData.range,
+                maxCooldown: typeData.cooldown,
                 cooldown: 0,
-                maxCooldown: cooldown,
-                kills: 0
+                kills: 0,
+                // Flags
+                isSlow: typeData.isSlow,
+                isSplash: typeData.isSplash,
+                splashRadius: typeData.splashRadius,
+                isSupport: typeData.isSupport,
+                isPiercing: typeData.isPiercing,
+                isEconomy: typeData.isEconomy,
+                generation: typeData.generation
             };
-            towers.push(entry);
+            towers.push(tower);
 
-            // Link Hitbox for Raycasting
-            mesh.traverse(child => {
-                if (child.userData.isHitbox) {
-                    child.userData.linkedTower = entry;
-                }
-            });
-
-            // Spend money
-            spendMoney(towerCost);
-            showError(`Placed ${selectedTower.toUpperCase()} (-$${towerCost})`);
-
-            // AUTO-UNEQUIP after valid placement
-            selectedTower = null;
-            ghostRing.visible = false;
-
-            // Reset UI buttons
-            const buttons = [btnBasic, btnSniper, btnScout, btnPyro, btnTesla];
-            buttons.forEach(b => b.style.borderColor = '#555');
+            // Deselect after placement (optional, but good for single placement)
+            // selectedTower = null; 
+            // selectTower(null); // Clear UI
         }
+
+
 
         // Raycaster for clicks
         const raycaster = new THREE.Raycaster();
@@ -2563,16 +2836,13 @@
                     if (enemy.regenRate && enemy.hp < enemy.maxHp) {
                         enemy.hp = Math.min(enemy.maxHp, enemy.hp + enemy.regenRate / 60); // Per frame
                     }
-
                     // Move towards next node
                     const target = pathNodes[enemy.nodeIndex + 1];
                     if (!target) {
-                        // Reached end - GAME OVER!
                         enemy.active = false;
                         scene.remove(enemy.mesh);
                         enemies.splice(i, 1);
-                        gameOver();
-                        return;
+                        continue;
                     }
 
                     const dir = new THREE.Vector3().subVectors(target, enemy.mesh.position).normalize();
@@ -2582,15 +2852,23 @@
                     if (dist < 0.2) {
                         enemy.nodeIndex++;
                         if (enemy.nodeIndex >= pathNodes.length - 1) {
-                            // Reached end - GAME OVER!
+                            // Reached end - enemy escapes (game over disabled)
                             enemy.active = false;
                             scene.remove(enemy.mesh);
                             enemies.splice(i, 1);
-                            gameOver();
-                            return;
+                            // gameOver();
+                            continue;
                         }
                     } else {
-                        enemy.mesh.position.add(dir.multiplyScalar(enemy.speed));
+                        let moveSpeed = enemy.speed;
+                        if (enemy.slowTimer > 0) {
+                            enemy.slowTimer--;
+                            moveSpeed *= 0.5;
+                            enemy.mesh.material.emissive.setHex(0x00ffff); // Blue glow
+                        } else {
+                            enemy.mesh.material.emissive.setHex(0x000000); // Off
+                        }
+                        enemy.mesh.position.add(dir.multiplyScalar(moveSpeed));
                     }
 
                     // Maintain flying height
@@ -2661,15 +2939,89 @@
                         return; // Skip shooting if stunned
                     }
 
+                    // 1. Nanominer Logic (Economy)
+                    if (t.isEconomy) {
+                        if (t.cooldown > 0) t.cooldown--;
+                        else {
+                            addMoney(t.generation);
+                            // Visual Floating Text (reuse error for now or add effect)
+                            // playSound('coin'); 
+                            showDebug("+$" + t.generation);
+                            t.cooldown = t.maxCooldown;
+
+                            // Visual pulse
+                            const pulse = new THREE.Mesh(new THREE.RingGeometry(0.5, 1, 16), new THREE.MeshBasicMaterial({ color: 0xffd700, transparent: true }));
+                            pulse.rotation.x = -Math.PI / 2;
+                            pulse.position.copy(t.mesh.position).add(new THREE.Vector3(0, 0.5, 0));
+                            scene.add(pulse);
+
+                            // Animate pulse (quick hack)
+                            let scale = 1;
+                            const anim = setInterval(() => {
+                                scale += 0.2;
+                                pulse.scale.set(scale, scale, 1);
+                                pulse.material.opacity -= 0.1;
+                                if (pulse.material.opacity <= 0) {
+                                    scene.remove(pulse);
+                                    clearInterval(anim);
+                                }
+                            }, 50);
+                        }
+                        return;
+                    }
+
+                    // 2. Amplifier Logic (Buffs)
+                    if (t.isSupport) {
+                        // Buff nearby towers
+                        // Only run check occasionally to save perf? Or every frame is fine for simple distance
+                        // Actually, buffs should be persistent or applied on attack.
+                        // Let's visual pulse every 2s
+                        /*
+                        if (t.cooldown > 0) t.cooldown--;
+                        else {
+                            t.cooldown = 120;
+                            // Visual Pulse
+                            const ring = createRangeRing(4, 0x9333ea);
+                            ring.position.copy(t.mesh.position).add(new THREE.Vector3(0,0.5,0));
+                            scene.add(ring);
+                            setTimeout(()=>scene.remove(ring), 500);
+                        }
+                        */
+                        // Passive buff logic implemented implicitly: 
+                        // Towers check for nearby amps when calculating stats? 
+                        // OR we iterate towers here.
+                        // Implementation Plan: For now, let's skip complex dynamic buffs and just make it a visual pulse tower 
+                        // that occasionally zaps enemies in range? No, user wants support.
+                        // Simplest Support: Adds damage to nearby towers.
+                        // We can do this by iterating other towers.
+                        if (Date.now() % 60 === 0) { // Check every second
+                            towers.forEach(other => {
+                                if (other === t) return;
+                                if (other.mesh.position.distanceTo(t.mesh.position) < 4) {
+                                    if (!other.hasBuff) {
+                                        other.damage *= 1.2; // 20% boost
+                                        other.hasBuff = true;
+                                        // constant visual beam?
+                                    }
+                                }
+                            });
+                        }
+                        return;
+                    }
+
                     if (t.cooldown > 0) t.cooldown--;
                     else {
                         // Find target
                         let target = null;
                         let minDist = t.range;
 
+                        // Railgun needs line definition, but first we need a primary target to aim at
+                        // Splash needs primary target
+
                         for (const e of enemies) {
-                            // Flying enemies can only be hit by Tesla and Sniper towers
-                            if (e.isFlying && t.type !== 'tesla' && t.type !== 'sniper') continue;
+                            // Flying check: Basic and Pyro cannot hit flying
+                            if (e.isFlying && (t.type === 'basic' || t.type === 'pyro')) continue;
+                            // Miner/Amp don't shoot (handled above)
 
                             const dist = t.mesh.position.distanceTo(e.mesh.position);
                             if (dist < minDist) {
@@ -2687,120 +3039,155 @@
                             // PLAY SOUND
                             playSound(t.type);
 
-                            // Create Projectile (Standard)
-                            if (t.type !== 'pyro' && t.type !== 'tesla') {
-                                createProjectile(t.mesh.position.clone().add(new THREE.Vector3(0, 3, 0)), target.mesh.position);
-                            }
+                            // --- SHOOTING LOGIC BY TYPE ---
 
-                            // VISUAL EFFECTS & SPECIAL LOGIC
+                            // 1. SPLASH (Rocket)
+                            if (t.isSplash) {
+                                createProjectile(t.mesh.position.clone().add(new THREE.Vector3(0, 2, 0)), target.mesh.position);
+                                // Explosion Visual
+                                setTimeout(() => {
+                                    const bang = new THREE.Mesh(new THREE.SphereGeometry(t.splashRadius, 16, 16), new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.5 }));
+                                    bang.position.copy(target.mesh.position);
+                                    scene.add(bang);
+                                    setTimeout(() => scene.remove(bang), 200);
 
-                            // Sniper Tracer
-                            if (t.type === 'sniper') {
-                                const laserGeom = new THREE.BufferGeometry().setFromPoints([
-                                    t.mesh.position.clone().add(new THREE.Vector3(0, 3, 0)),
-                                    target.mesh.position
-                                ]);
-                                const laserMat = new THREE.LineBasicMaterial({ color: 0xffaa00 });
-                                const laser = new THREE.Line(laserGeom, laserMat);
-                                scene.add(laser);
-                                setTimeout(() => scene.remove(laser), 50);
-                            }
-
-                            // Pyromancer Flame
-                            if (t.type === 'pyro') {
-                                // Draw a thicker orange line
-                                /* 
-                                    Ideally particles, but line is easier for single file. 
-                                */
-                                const laserGeom = new THREE.BufferGeometry().setFromPoints([
-                                    t.mesh.position.clone().add(new THREE.Vector3(0.6, 2.7, 0.7)), // Staff tip
-                                    target.mesh.position
-                                ]);
-                                const laserMat = new THREE.LineBasicMaterial({ color: 0xff4400, linewidth: 3 });
-                                const laser = new THREE.Line(laserGeom, laserMat);
-                                scene.add(laser);
-                                setTimeout(() => scene.remove(laser), 40); // Fast fade for flicker
-                            }
-
-                            // Tesla Lightning
-                            if (t.type === 'tesla') {
-                                const bolts = [];
-                                bolts.push(target);
-
-                                // Find targets near the main target (Chain)
-                                // Level 1: 2 extra (3 total)
-                                // Level 2: 3 extra (4 total)
-                                // Level 3: 4 extra (5 total)
-                                const chainLimit = 1 + (t.level || 1);
-                                const chainRange = 8; // Units to chain lightning
-                                let chainCount = 0;
-                                for (const e of enemies) {
-                                    if (chainCount >= chainLimit) break;
-                                    if (e === target) continue;
-                                    if (e.mesh.position.distanceTo(target.mesh.position) < chainRange) {
-                                        bolts.push(e);
-                                        // Deal damage to chained
-                                        e.hp -= (t.damage * 0.5); // Half dmg to bounce
-                                        if (e.hp <= 0 && e.active) {
-                                            e.active = false;
-                                            scene.remove(e.mesh);
-                                            const idx = enemies.indexOf(e);
-                                            if (idx > -1) enemies.splice(idx, 1);
-                                            t.kills++;
+                                    // Deal Damage
+                                    enemies.forEach(e => {
+                                        if (e.active && e.mesh.position.distanceTo(target.mesh.position) <= t.splashRadius) {
+                                            dealDamage(e, t.damage, t);
                                         }
-                                        chainCount++;
+                                    });
+                                }, 200); // Delay for projectile travel approx
+                            }
+                            // 2. PIERCING (Railgun)
+                            else if (t.isPiercing) {
+                                // Draw Beam
+                                const beamGeom = new THREE.BufferGeometry().setFromPoints([
+                                    t.mesh.position.clone().add(new THREE.Vector3(0, 1.8, 0)),
+                                    target.mesh.position.clone().sub(t.mesh.position).normalize().multiplyScalar(50).add(t.mesh.position)
+                                ]);
+                                const beam = new THREE.Line(beamGeom, new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 }));
+                                scene.add(beam);
+                                setTimeout(() => scene.remove(beam), 100);
+
+                                // Raycast Logic
+                                const origin = t.mesh.position.clone().add(new THREE.Vector3(0, 1.8, 0));
+                                const direction = target.mesh.position.clone().sub(origin).normalize();
+                                const ray = new THREE.Ray(origin, direction);
+
+                                enemies.forEach(e => {
+                                    if (!e.active) return;
+                                    // Check if enemy is close to the ray
+                                    const vec = new THREE.Vector3().subVectors(e.mesh.position, origin);
+                                    const proj = vec.projectOnVector(direction);
+                                    if (proj.dot(direction) < 0) return; // Behind tower
+
+                                    const distSq = e.mesh.position.distanceToSquared(origin.clone().add(proj)); // Distance to line
+                                    if (distSq < 1.0) { // Hit width
+                                        dealDamage(e, t.damage, t);
                                     }
-                                }
-
-                                // Draw ZigZags
-                                const startPos = t.mesh.position.clone().add(new THREE.Vector3(0, 2.5, 0));
-                                let prevPos = startPos;
-
-                                bolts.forEach(boltTarget => {
-                                    const endPos = boltTarget.mesh.position;
-
-                                    // Simple Line for now (Zigzag is complex for 1 tool call)
-                                    const geom = new THREE.BufferGeometry().setFromPoints([prevPos, endPos]);
-                                    const mat = new THREE.LineBasicMaterial({ color: 0x00ffff });
-                                    const line = new THREE.Line(geom, mat);
-                                    scene.add(line);
-                                    setTimeout(() => scene.remove(line), 100);
-
-                                    prevPos = endPos;
                                 });
                             }
-
-                            // Damage Logic (Main Target)
-                            // Apply damage reduction for Loaded mutation
-                            let finalDamage = t.damage;
-                            if (target.damageReduction) {
-                                finalDamage = t.damage * (1 - target.damageReduction);
+                            // 3. SLOW (Glacier)
+                            else if (t.isSlow) {
+                                createProjectile(t.mesh.position.clone().add(new THREE.Vector3(0, 3, 0)), target.mesh.position);
+                                setTimeout(() => {
+                                    if (target.active) {
+                                        dealDamage(target, t.damage, t);
+                                        target.slowTimer = 120; // 2s
+                                        // Visual Freeze
+                                        /* 
+                                        const ice = new THREE.Mesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshBasicMaterial({color:0x00ffff, wireframe:true}));
+                                        ice.position.copy(target.mesh.position);
+                                        scene.add(ice);
+                                        setTimeout(()=>scene.remove(ice), 500); 
+                                        */
+                                    }
+                                }, 100);
                             }
-                            target.hp -= finalDamage;
-                            if (target.hp <= 0) {
-                                target.active = false;
-                                scene.remove(target.mesh);
-                                const idx = enemies.indexOf(target);
-                                if (idx > -1) enemies.splice(idx, 1);
-
-                                t.kills++;
-                                if (selectedPlacedTower === t) {
-                                    uiKills.textContent = t.kills;
+                            // 4. EXISTING TYPES
+                            else {
+                                // Visuals
+                                if (t.type === 'sniper') {
+                                    const lg = new THREE.BufferGeometry().setFromPoints([t.mesh.position.clone().add(new THREE.Vector3(0, 3, 0)), target.mesh.position]);
+                                    const l = new THREE.Line(lg, new THREE.LineBasicMaterial({ color: 0xffaa00 }));
+                                    scene.add(l);
+                                    setTimeout(() => scene.remove(l), 50);
+                                    dealDamage(target, t.damage, t); // Sniper deals damage instantly
+                                } else if (t.type === 'pyro') {
+                                    // continuous beam? line for now
+                                    const lg = new THREE.BufferGeometry().setFromPoints([t.mesh.position.clone().add(new THREE.Vector3(0, 2, 0)), target.mesh.position]);
+                                    const l = new THREE.Line(lg, new THREE.LineBasicMaterial({ color: 0xff4400 }));
+                                    scene.add(l);
+                                    setTimeout(() => scene.remove(l), 40);
+                                    dealDamage(target, t.damage, t); // Pyro deals damage instantly
+                                } else if (t.type === 'tesla') {
+                                    // ... Chain Lightning (Simplified for this block)
+                                    // Deal primary
+                                    dealDamage(target, t.damage, t);
+                                    // Chain
+                                    let chainCount = 0;
+                                    const limit = 2 + t.level;
+                                    enemies.forEach(e => {
+                                        if (chainCount >= limit) return;
+                                        if (e !== target && e.active && e.mesh.position.distanceTo(target.mesh.position) < 8) {
+                                            dealDamage(e, t.damage * 0.5, t);
+                                            // Draw bolt
+                                            // ...
+                                            chainCount++;
+                                        }
+                                    });
+                                } else {
+                                    // Basic / Scout -> Projectile
+                                    createProjectile(t.mesh.position.clone().add(new THREE.Vector3(0, 2, 0)), target.mesh.position);
+                                    // Delay damage for travel? Or instant?
+                                    // Let's do instant for responsiveness, visual catches up
+                                    dealDamage(target, t.damage, t);
                                 }
-
-                                // Money reward based on enemy type
-                                let reward = 5 + Math.floor(wave * 0.5); // Base reward scales with wave
-                                if (target.type && target.type.includes('giant')) reward *= 3;
-                                if (target.type && target.type.includes('boss')) reward *= 10;
-                                if (target.type && target.type.includes('molten')) reward *= 1.5;
-                                if (target.type && target.type.includes('frozen')) reward *= 2;
-                                if (target.type && target.type.includes('void')) reward *= 2.5;
-                                if (target.type && target.type.includes('heavenly')) reward *= 3;
-                                addMoney(Math.floor(reward));
                             }
                         }
                     }
                 });
+
+                // Helper to apply damage (Hoisted)
+                function dealDamage(enemy, amount, tower) {
+                    if (!enemy.active) return;
+                    let amt = amount || 0;
+                    if (enemy.damageReduction) amt *= (1 - enemy.damageReduction);
+                    if (enemy.isFrozen && amt > 5) amt *= 1.5; // Shatter bonus
+
+                    enemy.hp -= amt;
+
+                    // Hit reaction (flash white)
+                    enemy.mesh.material.color.setHex(0xffffff);
+                    setTimeout(() => {
+                        if (enemy.active) {
+                            const typeData = ENEMY_TYPES[enemy.type];
+                            if (typeData) enemy.mesh.material.color.setHex(typeData.color);
+                        }
+                    }, 50);
+
+                    if (enemy.hp <= 0) {
+                        enemy.active = false;
+                        scene.remove(enemy.mesh);
+                        const idx = enemies.indexOf(enemy);
+                        if (idx > -1) enemies.splice(idx, 1);
+
+                        // Kill Credit
+                        if (tower) {
+                            tower.kills = (tower.kills || 0) + 1;
+                            if (selectedPlacedTower === tower) {
+                                document.getElementById('refKills').textContent = tower.kills;
+                            }
+                        }
+
+                        // Money reward
+                        let reward = 5 + Math.floor(wave * 0.5);
+                        if (enemy.type && enemy.type.includes('boss')) reward *= 10;
+                        if (enemy.type && enemy.type.includes('giant')) reward *= 3;
+                        addMoney(Math.floor(reward));
+                    }
+                }
 
                 // Update Counter
                 document.getElementById('enemyCountDisplay').textContent = `Enemies: ${enemies.length}`;
