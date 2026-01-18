@@ -509,6 +509,7 @@
                 }
             });
         }
+        window.selectTower = selectTower;
 
         // --- MONEY SYSTEM ---
         let money = 500; // Starting money
@@ -888,7 +889,7 @@
         }
 
         function spawnBoss() {
-            // Use realm boss        function spawnBoss() {
+            // Use realm boss
             let type = 'boss';
             let name = 'MEGA BOSS';
 
@@ -1451,26 +1452,7 @@
         generateTerrain(); // Call at startup
 
         // Tower Selection UI
-        const btnBasic = document.getElementById('btnBasic');
-        const btnSniper = document.getElementById('btnSniper');
-        const btnScout = document.getElementById('btnScout');
-        const btnPyro = document.getElementById('btnPyro');
-        const btnTesla = document.getElementById('btnTesla');
 
-        btnBasic.addEventListener('click', () => selectTower('basic'));
-        btnSniper.addEventListener('click', () => selectTower('sniper'));
-        btnScout.addEventListener('click', () => selectTower('scout'));
-        btnPyro.addEventListener('click', () => selectTower('pyro'));
-        btnTesla.addEventListener('click', () => selectTower('tesla'));
-
-        function selectTower(type) {
-            selectedTower = type;
-            btnBasic.style.borderColor = type === 'basic' ? '#3b82f6' : '#555';
-            btnSniper.style.borderColor = type === 'sniper' ? '#facc15' : '#555';
-            btnScout.style.borderColor = type === 'scout' ? '#4ade80' : '#555';
-            btnPyro.style.borderColor = type === 'pyro' ? '#f97316' : '#555';
-            btnTesla.style.borderColor = type === 'tesla' ? '#0ea5e9' : '#555';
-        }
 
         // Procedural Mesh Generators
         function createScoutMesh(level = 1) {
