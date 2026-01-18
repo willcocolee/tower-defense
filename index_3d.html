@@ -192,6 +192,10 @@
         <div style="width: 20px;"></div>
         <button id="btnSpeed" style="border: 2px solid #a855f7; color: #a855f7;">Speed: 1x</button>
         <button id="btnMusic" style="border: 2px solid #888;">🎵 Music</button>
+        <label
+            style="color:white; margin-left:10px; font-family: sans-serif; cursor: pointer; display: flex; align-items: center; background: rgba(0,0,0,0.5); padding: 5px; border-radius: 4px;">
+            <input type="checkbox" id="chkShadows" checked style="cursor: pointer; margin-right: 5px;"> High Quality
+        </label>
     </div>
 
     <!-- Background Music (Hidden) -->
@@ -345,6 +349,13 @@
 
         let ghostRing = createRangeRing(1, 0xffffff);
 
+        // --- SHARED RESOURCES ---
+        const SHARED_GEOMETRY = {
+            sphere: new THREE.SphereGeometry(1, 16, 16),
+            box: new THREE.BoxGeometry(1, 1, 1),
+            plane: new THREE.PlaneGeometry(1, 1)
+        };
+
         // --- SCENE SETUP ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x050505); // Darker background for bloom
@@ -419,6 +430,21 @@
         dirLight.shadow.camera.bottom = -40;
         dirLight.shadow.bias = -0.0005; // Fix shadow acne
         scene.add(dirLight);
+
+        // Quality Toggle
+        function toggleShadows(enabled) {
+            renderer.shadowMap.enabled = enabled;
+            dirLight.castShadow = enabled;
+            // Recompile materials (hacky but needed for shadowmap flags)
+            scene.traverse(child => {
+                if (child.material) child.material.needsUpdate = true;
+            });
+            // Update ground plane directly just in case
+            groundPlane.receiveShadow = enabled;
+        }
+        document.getElementById('chkShadows').addEventListener('change', (e) => {
+            toggleShadows(e.target.checked);
+        });
 
         // --- GAME OBJECTS ---
         const TILE_SIZE = 2;
@@ -495,6 +521,25 @@
 
         const towers = [];
         const enemies = [];
+        const enemyPool = []; // Pooling optimization
+
+        function getEnemy() {
+            return enemyPool.pop();
+        }
+
+        function releaseEnemy(enemy) {
+            enemy.active = false;
+            scene.remove(enemy.mesh);
+            // Clear children (visual effects)
+            while (enemy.mesh.children.length > 0) {
+                enemy.mesh.remove(enemy.mesh.children[0]);
+            }
+            // Reset transforms
+            enemy.mesh.scale.setScalar(1);
+            enemy.mesh.rotation.set(0, 0, 0);
+            enemyPool.push(enemy);
+        }
+
         const projectiles = []; // Removed duplicate declaration
 
         // Tower selection state
@@ -552,17 +597,17 @@
         };
 
         const TOWER_TYPES = {
-            basic: { cost: 100, range: 5.0, damage: 15, cooldown: 50, color: 0x3b82f6, name: 'Basic Tower', type: 'basic', maxLevel: 10 },
-            sniper: { cost: 250, range: 500.0, damage: 150, cooldown: 120, color: 0x555555, name: 'Sniper Tower', type: 'sniper', maxLevel: 3 },
-            scout: { cost: 150, range: 4.0, damage: 10, cooldown: 25, color: 0x888888, name: 'Scout Tower', type: 'scout', maxLevel: 8 },
-            pyro: { cost: 200, range: 2.5, damage: 3, cooldown: 5, color: 0xff6600, name: 'Pyromancer', type: 'pyro', maxLevel: 5 },
-            tesla: { cost: 300, range: 3.0, damage: 25, cooldown: 45, color: 0x00ccff, name: 'Tesla Coil', type: 'tesla', maxLevel: 4 },
+            basic: { cost: 100, range: 6.0, damage: 20, cooldown: 40, color: 0x3b82f6, name: 'Basic Tower', type: 'basic', maxLevel: 10 },
+            sniper: { cost: 250, range: 600.0, damage: 200, cooldown: 100, color: 0x555555, name: 'Sniper Tower', type: 'sniper', maxLevel: 3 },
+            scout: { cost: 150, range: 5.0, damage: 15, cooldown: 20, color: 0x888888, name: 'Scout Tower', type: 'scout', maxLevel: 8 },
+            pyro: { cost: 200, range: 3.0, damage: 5, cooldown: 4, color: 0xff6600, name: 'Pyromancer', type: 'pyro', maxLevel: 5 },
+            tesla: { cost: 300, range: 4.0, damage: 30, cooldown: 40, color: 0x00ccff, name: 'Tesla Coil', type: 'tesla', maxLevel: 4 },
             // New Towers
-            glacier: { cost: 350, range: 4.0, damage: 15, cooldown: 40, color: 0x00ffff, name: 'Glacier', type: 'glacier', isSlow: true, maxLevel: 4 },
-            rocket: { cost: 600, range: 7.0, damage: 100, cooldown: 100, color: 0x228b22, name: 'Rocket', type: 'rocket', isSplash: true, splashRadius: 2.5, maxLevel: 3 },
-            amp: { cost: 800, range: 4.5, damage: 0, cooldown: 0, color: 0x9333ea, name: 'Amplifier', type: 'amp', isSupport: true, maxLevel: 3 },
-            railgun: { cost: 1000, range: 12.0, damage: 200, cooldown: 80, color: 0xff0000, name: 'Railgun', type: 'railgun', isPiercing: true, maxLevel: 3 },
-            miner: { cost: 400, range: 0, damage: 0, cooldown: 300, color: 0xffaa00, name: 'Nanominer', type: 'miner', isEconomy: true, generation: 50, maxLevel: 10 }
+            glacier: { cost: 350, range: 4.5, damage: 20, cooldown: 35, color: 0x00ffff, name: 'Glacier', type: 'glacier', isSlow: true, maxLevel: 4 },
+            rocket: { cost: 600, range: 8.0, damage: 150, cooldown: 90, color: 0x228b22, name: 'Rocket', type: 'rocket', isSplash: true, splashRadius: 3.0, maxLevel: 3 },
+            amp: { cost: 800, range: 5.0, damage: 0, cooldown: 0, color: 0x9333ea, name: 'Amplifier', type: 'amp', isSupport: true, maxLevel: 3 },
+            railgun: { cost: 1000, range: 15.0, damage: 300, cooldown: 70, color: 0xff0000, name: 'Railgun', type: 'railgun', isPiercing: true, maxLevel: 3 },
+            miner: { cost: 400, range: 0, damage: 0, cooldown: 250, color: 0xffaa00, name: 'Nanominer', type: 'miner', isEconomy: true, generation: 60, maxLevel: 10 }
         };
 
         const UPGRADE_COST_BASE = 100; // Cost increases per level
@@ -686,231 +731,221 @@
             flying: { name: 'Flying', isFlying: true, color: 0xffff00, height: 3.0 }
         };
 
+
+
         function spawnEnemy(typeOverride, mutationOverride) {
-            // Determine enemy type
-            let type = typeOverride || 'normal';
+            try {
+                // Determine enemy type
+                let type = typeOverride || 'normal';
 
-            // Random type selection if not overridden
-            if (!typeOverride) {
-                const roll = Math.random();
-                if (roll < 0.15) type = 'speedster';
-                else if (roll < 0.25) type = 'giant';
+                // Random type selection if not overridden (Existing logic...)
+                if (!typeOverride) {
+                    const roll = Math.random();
+                    if (roll < 0.15) type = 'speedster';
+                    else if (roll < 0.25) type = 'giant';
 
-                // Use realm variants based on wave
-                if (wave >= 200) {
-                    type = 'cyber_' + type;
-                } else if (wave >= 100) {
-                    type = 'heavenly_' + type;
-                } else if (wave >= 75) {
-                    type = 'void_' + type;
-                } else if (wave >= 50) {
-                    type = 'frozen_' + type;
-                } else if (wave >= 25) {
-                    type = 'molten_' + type;
-                }
-            }
-
-            const typeData = ENEMY_TYPES[type];
-
-            // Determine mutation (chance increases with wave)
-            let mutation = mutationOverride || 'none';
-            if (!mutationOverride && wave >= 3) {
-                const mutationChance = Math.min(0.4, 0.05 * wave);
-                if (Math.random() < mutationChance) {
-                    const mutations = ['loaded', 'nimble', 'regen'];
-                    if (wave >= 5) mutations.push('flying');
-                    mutation = mutations[Math.floor(Math.random() * mutations.length)];
-                }
-            }
-            const mutData = MUTATIONS[mutation];
-
-            // Create mesh
-            const geom = new THREE.SphereGeometry(typeData.size, 16, 16);
-
-            // Color based on type, tinted by mutation
-            let baseColor = new THREE.Color(typeData.color);
-            if (mutation !== 'none') {
-                baseColor.lerp(new THREE.Color(mutData.color), 0.4);
-            }
-
-            const mat = new THREE.MeshLambertMaterial({ color: baseColor });
-            const mesh = new THREE.Mesh(geom, mat);
-
-            const start = pathNodes[0];
-            mesh.position.copy(start);
-            mesh.position.y = typeData.size + (mutData.isFlying ? mutData.height : 0);
-
-            // Add visual indicators for mutations
-            if (mutation === 'flying') {
-                // Add wings
-                const wingMat = new THREE.MeshBasicMaterial({ color: 0xffff00, side: THREE.DoubleSide, transparent: true, opacity: 0.6 });
-                const wingL = new THREE.Mesh(new THREE.PlaneGeometry(typeData.size * 1.5, typeData.size * 0.8), wingMat);
-                wingL.position.set(-typeData.size * 0.8, 0, 0);
-                wingL.rotation.y = Math.PI / 4;
-                mesh.add(wingL);
-                const wingR = new THREE.Mesh(new THREE.PlaneGeometry(typeData.size * 1.5, typeData.size * 0.8), wingMat);
-                wingR.position.set(typeData.size * 0.8, 0, 0);
-                wingR.rotation.y = -Math.PI / 4;
-                mesh.add(wingR);
-            }
-
-            if (mutation === 'loaded') {
-                // Add armor plates
-                const armorMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
-                const armor = new THREE.Mesh(new THREE.BoxGeometry(typeData.size * 1.2, typeData.size * 0.3, typeData.size * 1.2), armorMat);
-                armor.position.set(0, typeData.size * 0.5, 0);
-                mesh.add(armor);
-            }
-
-            if (mutation === 'regen') {
-                // Add green glow
-                const glowMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.3 });
-                const glow = new THREE.Mesh(new THREE.SphereGeometry(typeData.size * 1.3, 8, 8), glowMat);
-                mesh.add(glow);
-            }
-
-            // Molten enemy effects
-            if (typeData.isMolten) {
-                // Fire glow
-                const fireMat = new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.4 });
-                const fireGlow = new THREE.Mesh(new THREE.SphereGeometry(typeData.size * 1.2, 8, 8), fireMat);
-                mesh.add(fireGlow);
-
-                // Point light
-                const fireLight = new THREE.PointLight(0xff4400, 1, typeData.size * 4);
-                mesh.add(fireLight);
-            }
-
-            // Frozen enemy effects
-            if (typeData.isFrozen) {
-                // Ice glow
-                const iceMat = new THREE.MeshBasicMaterial({ color: 0x88ddff, transparent: true, opacity: 0.3 });
-                const iceGlow = new THREE.Mesh(new THREE.SphereGeometry(typeData.size * 1.2, 8, 8), iceMat);
-                mesh.add(iceGlow);
-
-                // Ice crystals
-                const crystalMat = new THREE.MeshBasicMaterial({ color: 0xaaeeff, transparent: true, opacity: 0.7 });
-                for (let i = 0; i < 4; i++) {
-                    const crystal = new THREE.Mesh(new THREE.ConeGeometry(typeData.size * 0.15, typeData.size * 0.4, 4), crystalMat);
-                    crystal.position.set(
-                        Math.cos(i * Math.PI / 2) * typeData.size * 0.6,
-                        typeData.size * 0.3,
-                        Math.sin(i * Math.PI / 2) * typeData.size * 0.6
-                    );
-                    mesh.add(crystal);
+                    // Use realm variants based on wave
+                    if (wave >= 200) { type = 'cyber_' + type; }
+                    else if (wave >= 100) { type = 'heavenly_' + type; }
+                    else if (wave >= 75) { type = 'void_' + type; }
+                    else if (wave >= 50) { type = 'frozen_' + type; }
+                    else if (wave >= 25) { type = 'molten_' + type; }
                 }
 
-                // Cold light
-                const iceLight = new THREE.PointLight(0x88ddff, 0.8, typeData.size * 4);
-                mesh.add(iceLight);
-            }
+                const typeData = ENEMY_TYPES[type];
+                if (!typeData) throw new Error(`Invalid enemy type: ${type}`);
 
-            // Void enemy effects
-            if (typeData.isVoid) {
-                // Void glow (dark purple)
-                const voidMat = new THREE.MeshBasicMaterial({ color: 0x6600cc, transparent: true, opacity: 0.5 });
-                const voidGlow = new THREE.Mesh(new THREE.SphereGeometry(typeData.size * 1.3, 8, 8), voidMat);
-                mesh.add(voidGlow);
+                // Determine mutation
+                let mutation = mutationOverride || 'none';
+                if (!mutationOverride && wave >= 3) {
+                    const mutationChance = Math.min(0.4, 0.05 * wave);
+                    if (Math.random() < mutationChance) {
+                        const mutations = ['loaded', 'nimble', 'regen'];
+                        if (wave >= 5) mutations.push('flying');
+                        mutation = mutations[Math.floor(Math.random() * mutations.length)];
+                    }
+                }
+                const mutData = MUTATIONS[mutation];
 
-                // Floating dark particles (rings)
-                for (let i = 0; i < 3; i++) {
+                // OPTIMIZATION: Pooling
+                let enemy = getEnemy();
+                let mesh;
+
+                if (enemy) {
+                    mesh = enemy.mesh;
+                    mesh.material.color.setHex(typeData.color);
+                } else {
+                    mesh = new THREE.Mesh(SHARED_GEOMETRY.sphere, new THREE.MeshLambertMaterial({ color: typeData.color }));
+                    enemy = { mesh: mesh };
+                }
+
+                // Color tinting
+                if (mutation !== 'none') {
+                    mesh.material.color.lerp(new THREE.Color(mutData.color), 0.4);
+                }
+
+                mesh.scale.setScalar(typeData.size);
+
+                if (!pathNodes || pathNodes.length === 0) throw new Error("Path nodes missing");
+                const start = pathNodes[0];
+                mesh.position.copy(start);
+                // World position Y still depends on actual size (which is scale * 1)
+                mesh.position.y = typeData.size + (mutData.isFlying ? mutData.height : 0);
+
+                // Add visual indicators for mutations (NORMALIZED COORDINATES)
+                // Since parent is scaled, we use unit offsets (1.0 = typeData.size)
+                if (mutation === 'flying') {
+                    // Add wings
+                    const wingMat = new THREE.MeshBasicMaterial({ color: 0xffff00, side: THREE.DoubleSide, transparent: true, opacity: 0.6 });
+                    const wingL = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.8), wingMat);
+                    wingL.position.set(-0.8, 0, 0);
+                    wingL.rotation.y = Math.PI / 4;
+                    mesh.add(wingL);
+                    const wingR = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.8), wingMat);
+                    wingR.position.set(0.8, 0, 0);
+                    wingR.rotation.y = -Math.PI / 4;
+                    mesh.add(wingR);
+                }
+
+                if (mutation === 'loaded') {
+                    // Add armor plates
+                    const armorMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
+                    const armor = new THREE.Mesh(SHARED_GEOMETRY.box, armorMat);
+                    armor.scale.set(1.2, 0.3, 1.2);
+                    armor.position.set(0, 0.5, 0);
+                    mesh.add(armor);
+                }
+
+                if (mutation === 'regen') {
+                    // Add green glow
+                    const glowMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.3 });
+                    const glow = new THREE.Mesh(SHARED_GEOMETRY.sphere, glowMat);
+                    glow.scale.setScalar(1.3);
+                    mesh.add(glow);
+                }
+
+                // Molten enemy effects
+                if (typeData.isMolten) {
+                    const fireMat = new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.4 });
+                    const fireGlow = new THREE.Mesh(SHARED_GEOMETRY.sphere, fireMat);
+                    fireGlow.scale.setScalar(1.2);
+                    mesh.add(fireGlow);
+                    const fireLight = new THREE.PointLight(0xff4400, 1, 4); // Light range is relative to world? No, child lights scale?
+                    // Warning: PointLight range/intensity might NOT scale with parent transform in Three.js?
+                    // Actually, PointLight positions scale, but 'distance' parameter is usually World Units.
+                    // If we put light inside scaled mesh, position scales. Range checks usually use world distance.
+                    // So 'distance' 4 inside scaled mesh (0.5) -> still distance 4 world units?
+                    // No. Three.js lights are scene graph objects.
+                    // But 'distance' is uniform.
+                    // Let's assume standard behavior. 'distance' 4 is fine.
+                    mesh.add(fireLight);
+                }
+
+                // Frozen enemy effects
+                if (typeData.isFrozen) {
+                    const iceMat = new THREE.MeshBasicMaterial({ color: 0x88ddff, transparent: true, opacity: 0.3 });
+                    const iceGlow = new THREE.Mesh(SHARED_GEOMETRY.sphere, iceMat);
+                    iceGlow.scale.setScalar(1.2);
+                    mesh.add(iceGlow);
+                    const crystalMat = new THREE.MeshBasicMaterial({ color: 0xaaeeff, transparent: true, opacity: 0.7 });
+                    for (let i = 0; i < 4; i++) {
+                        const crystal = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.4, 4), crystalMat);
+                        crystal.position.set(
+                            Math.cos(i * Math.PI / 2) * 0.6,
+                            0.3,
+                            Math.sin(i * Math.PI / 2) * 0.6
+                        );
+                        mesh.add(crystal);
+                    }
+                    const iceLight = new THREE.PointLight(0x88ddff, 0.8, 4);
+                    mesh.add(iceLight);
+                }
+
+                // Void enemy effects
+                if (typeData.isVoid) {
+                    const voidMat = new THREE.MeshBasicMaterial({ color: 0x6600cc, transparent: true, opacity: 0.5 });
+                    const voidGlow = new THREE.Mesh(SHARED_GEOMETRY.sphere, voidMat);
+                    voidGlow.scale.setScalar(1.3);
+                    mesh.add(voidGlow);
+                    /* Rings - simplifying for optimization - just one ring */
                     const ringMat = new THREE.MeshBasicMaterial({ color: 0x9933ff, transparent: true, opacity: 0.6, side: THREE.DoubleSide });
-                    const ring = new THREE.Mesh(new THREE.RingGeometry(typeData.size * (0.8 + i * 0.3), typeData.size * (0.9 + i * 0.3), 8), ringMat);
+                    const ring = new THREE.Mesh(new THREE.RingGeometry(0.8, 1.0, 16), ringMat);
                     ring.rotation.x = Math.PI / 2;
-                    ring.position.y = i * 0.3 - 0.2;
                     mesh.add(ring);
+
+                    const voidLight = new THREE.PointLight(0x6600cc, 1, 5);
+                    mesh.add(voidLight);
                 }
 
-                // Void light (dark purple glow)
-                const voidLight = new THREE.PointLight(0x6600cc, 1, typeData.size * 5);
-                mesh.add(voidLight);
-            }
+                // Heavenly enemy effects
+                if (typeData.isHeavenly) {
+                    const goldenMat = new THREE.MeshBasicMaterial({ color: 0xffdd88, transparent: true, opacity: 0.4 });
+                    const goldenGlow = new THREE.Mesh(SHARED_GEOMETRY.sphere, goldenMat);
+                    goldenGlow.scale.setScalar(1.4);
+                    mesh.add(goldenGlow);
 
-            // Heavenly enemy effects
-            if (typeData.isHeavenly) {
-                // Golden glow
-                const goldenMat = new THREE.MeshBasicMaterial({ color: 0xffdd88, transparent: true, opacity: 0.4 });
-                const goldenGlow = new THREE.Mesh(new THREE.SphereGeometry(typeData.size * 1.4, 8, 8), goldenMat);
-                mesh.add(goldenGlow);
+                    const haloMat = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.8, side: THREE.DoubleSide });
+                    const halo = new THREE.Mesh(new THREE.RingGeometry(0.6, 0.8, 16), haloMat);
+                    halo.rotation.x = Math.PI / 2;
+                    halo.position.y = 1.3; // Normalized
+                    mesh.add(halo);
 
-                // Halo
-                const haloMat = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.8, side: THREE.DoubleSide });
-                const halo = new THREE.Mesh(new THREE.RingGeometry(typeData.size * 0.6, typeData.size * 0.8, 16), haloMat);
-                halo.rotation.x = Math.PI / 2;
-                halo.position.y = typeData.size + 0.3;
-                mesh.add(halo);
-
-                // Angel wings
-                const wingMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, side: THREE.DoubleSide });
-                const wingL = new THREE.Mesh(new THREE.PlaneGeometry(typeData.size * 1.2, typeData.size * 0.8), wingMat);
-                wingL.position.set(-typeData.size * 0.8, typeData.size * 0.2, -0.2);
-                wingL.rotation.y = Math.PI / 3;
-                mesh.add(wingL);
-                const wingR = new THREE.Mesh(new THREE.PlaneGeometry(typeData.size * 1.2, typeData.size * 0.8), wingMat);
-                wingR.position.set(typeData.size * 0.8, typeData.size * 0.2, -0.2);
-                wingR.rotation.y = -Math.PI / 3;
-                mesh.add(wingR);
-
-                // Divine light
-                const divineLight = new THREE.PointLight(0xffffaa, 1.5, typeData.size * 6);
-                mesh.add(divineLight);
-            }
-
-            // Cyber enemy effects
-            if (typeData.isCyber) {
-                // Glowing lines/circuits
-                const circuitMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.6 });
-                const circuit1 = new THREE.Mesh(new THREE.CylinderGeometry(typeData.size * 0.8, typeData.size * 0.8, 0.1, 16), circuitMat);
-                circuit1.position.y = typeData.size * 0.5;
-                mesh.add(circuit1);
-                const circuit2 = new THREE.Mesh(new THREE.CylinderGeometry(typeData.size * 0.8, typeData.size * 0.8, 0.1, 16), circuitMat);
-                circuit2.rotation.x = Math.PI / 2;
-                circuit2.position.z = typeData.size * 0.5;
-                mesh.add(circuit2);
-
-                // Cyber glow
-                const cyberLight = new THREE.PointLight(0x00ffff, 1.2, typeData.size * 5);
-                mesh.add(cyberLight);
-
-                // If it's a gunner, add a small gun
-                if (typeData.isGunner) {
-                    const gunMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.8, roughness: 0.2 });
-                    const gunBody = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.5), gunMat);
-                    gunBody.position.set(typeData.size * 0.5, 0, typeData.size * 0.5);
-                    mesh.add(gunBody);
-                    const gunBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.8), gunMat);
-                    gunBarrel.position.set(typeData.size * 0.5, 0, typeData.size * 0.9);
-                    mesh.add(gunBarrel);
+                    const divineLight = new THREE.PointLight(0xffffaa, 1.5, 6);
+                    mesh.add(divineLight);
                 }
+
+                // Cyber enemy effects
+                if (typeData.isCyber) {
+                    const circuitMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.6 });
+                    // Use shared cylinder or just box for circuit
+                    const circuit1 = new THREE.Mesh(SHARED_GEOMETRY.box, circuitMat);
+                    circuit1.scale.set(1.6, 0.1, 1.6); // Instead of cylinder ring
+                    circuit1.position.y = 0.5;
+                    mesh.add(circuit1);
+
+                    const cyberLight = new THREE.PointLight(0x00ffff, 1.2, 5);
+                    mesh.add(cyberLight);
+                }
+
+                scene.add(mesh);
+
+                if (enemies.length > 200) {
+                    console.warn("Too many enemies! Stopping spawn.");
+                    waveState = 'ACTIVE';
+                    return;
+                }
+
+                // Calculate HP (balanced for early waves)
+                const baseHp = 50 + (wave * 15); // Wave 1 = 65 HP, scales slower
+                const hp = Math.floor(baseHp * typeData.hpMult);
+
+                // Calculate speed
+                let speed = (0.06 + (wave * 0.003)) * typeData.speedMult;
+                if (mutData.speedMult) speed *= mutData.speedMult;
+
+                // Update pooled enemy props
+                enemy.nodeIndex = 0;
+                enemy.hp = hp;
+                enemy.maxHp = hp;
+                enemy.speed = speed;
+                enemy.active = true;
+                enemy.type = type;
+                enemy.typeName = typeData.name;
+                enemy.mutation = mutation;
+                enemy.mutationName = mutData.name || '';
+                enemy.damageReduction = mutData.damageReduction || 0;
+                enemy.regenRate = mutData.regenRate || 0;
+                enemy.isFlying = mutData.isFlying || false;
+                enemy.isGunner = typeData.isGunner || false;
+                enemy.baseY = typeData.size + (mutData.isFlying ? mutData.height : 0);
+
+                enemies.push(enemy);
+            } catch (e) {
+                console.error(e);
+                showError("Spawn Error: " + e.message);
+                // Stop spawning to prevent freeze
+                waveState = 'ACTIVE';
             }
-
-            scene.add(mesh);
-
-            // Calculate HP (balanced for early waves)
-            const baseHp = 50 + (wave * 15); // Wave 1 = 65 HP, scales slower
-            const hp = Math.floor(baseHp * typeData.hpMult);
-
-            // Calculate speed
-            let speed = (0.06 + (wave * 0.003)) * typeData.speedMult;
-            if (mutData.speedMult) speed *= mutData.speedMult;
-
-            enemies.push({
-                mesh: mesh,
-                nodeIndex: 0,
-                hp: hp,
-                maxHp: hp,
-                speed: speed,
-                active: true,
-                type: type,
-                typeName: typeData.name,
-                mutation: mutation,
-                mutationName: mutData.name || '',
-                damageReduction: mutData.damageReduction || 0,
-                regenRate: mutData.regenRate || 0,
-                isFlying: mutData.isFlying || false,
-                isGunner: typeData.isGunner || false, // Add isGunner property
-                baseY: typeData.size + (mutData.isFlying ? mutData.height : 0)
-            });
         }
 
         function spawnBoss() {
@@ -2898,11 +2933,13 @@
         // Projectiles array
         // const projectiles = []; // Removed duplicate declaration
 
+        // Shared Projectile Material
+        const MAT_PROJECTILE = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+
         // Projectiles
         function createProjectile(start, targetPos) {
-            const geom = new THREE.SphereGeometry(0.2, 8, 8);
-            const mat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
-            const mesh = new THREE.Mesh(geom, mat);
+            const mesh = new THREE.Mesh(SHARED_GEOMETRY.sphere, MAT_PROJECTILE);
+            mesh.scale.setScalar(0.2);
             mesh.position.copy(start);
             scene.add(mesh);
 
@@ -2990,7 +3027,7 @@
                     const target = pathNodes[enemy.nodeIndex + 1];
                     if (!target) {
                         enemy.active = false;
-                        scene.remove(enemy.mesh);
+                        releaseEnemy(enemy);
                         enemies.splice(i, 1);
                         continue;
                     }
@@ -3003,8 +3040,8 @@
                         enemy.nodeIndex++;
                         if (enemy.nodeIndex >= pathNodes.length - 1) {
                             // Reached end - enemy escapes (game over disabled)
-                            enemy.active = false;
-                            scene.remove(enemy.mesh);
+                            // Reached end - enemy escapes (game over disabled)
+                            releaseEnemy(enemy);
                             enemies.splice(i, 1);
                             // gameOver();
                             continue;
@@ -3318,8 +3355,7 @@
                     }, 50);
 
                     if (enemy.hp <= 0) {
-                        enemy.active = false;
-                        scene.remove(enemy.mesh);
+                        releaseEnemy(enemy);
                         const idx = enemies.indexOf(enemy);
                         if (idx > -1) enemies.splice(idx, 1);
 
