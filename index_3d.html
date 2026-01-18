@@ -511,6 +511,7 @@
         }
         window.selectTower = selectTower;
 
+
         // --- MONEY SYSTEM ---
         let money = 500; // Starting money
         const TOWER_COSTS = {
@@ -528,7 +529,7 @@
 
         const TOWER_TYPES = {
             basic: { cost: 100, range: 4.0, damage: 10, cooldown: 60, color: 0x3b82f6, name: 'Basic Tower', type: 'basic' },
-            sniper: { cost: 250, range: 10.0, damage: 50, cooldown: 120, color: 0x555555, name: 'Sniper Tower', type: 'sniper' },
+            sniper: { cost: 250, range: 18.0, damage: 50, cooldown: 120, color: 0x555555, name: 'Sniper Tower', type: 'sniper' },
             scout: { cost: 150, range: 3.0, damage: 5, cooldown: 30, color: 0x888888, name: 'Scout Tower', type: 'scout' },
             pyro: { cost: 200, range: 2.5, damage: 1, cooldown: 5, color: 0xff6600, name: 'Pyromancer', type: 'pyro' },
             tesla: { cost: 300, range: 3.5, damage: 15, cooldown: 45, color: 0x00ccff, name: 'Tesla Coil', type: 'tesla' },
@@ -2544,9 +2545,9 @@
             };
             towers.push(tower);
 
-            // Deselect after placement (optional, but good for single placement)
-            // selectedTower = null; 
-            // selectTower(null); // Clear UI
+            // Deselect after placement
+            selectTower(null);
+            if (window.ghostRing) window.ghostRing.visible = false;
         }
 
 
