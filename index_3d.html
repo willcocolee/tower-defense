@@ -196,6 +196,15 @@
 
     <!-- Background Music (Hidden) -->
     <div id="musicContainer" style="display:none;"></div>
+    <!-- Wave Skipper -->
+    <div id="waveSkipPanel"
+        style="position: fixed; bottom: 20px; left: 20px; z-index: 2000; background: rgba(0,0,0,0.8); padding: 10px; border-radius: 8px; border: 1px solid #555;">
+        <span style="color:white; margin-right:5px;">Wave:</span>
+        <input type="number" id="waveInput" value="1" min="1"
+            style="width: 50px; background: #333; color: white; border: 1px solid #777; padding: 5px;">
+        <button id="btnSkipWave"
+            style="background: #3b82f6; color: white; border: none; padding: 5px 10px; cursor: pointer; margin-left: 5px;">Set</button>
+    </div>
     <script>
         // Simple YouTube Player Embed Logic
         // We inject the iframe when button is clicked to bypass some autoplay restrictions cleanly
@@ -543,17 +552,17 @@
         };
 
         const TOWER_TYPES = {
-            basic: { cost: 100, range: 5.0, damage: 10, cooldown: 60, color: 0x3b82f6, name: 'Basic Tower', type: 'basic', maxLevel: 10 },
-            sniper: { cost: 250, range: 500.0, damage: 50, cooldown: 120, color: 0x555555, name: 'Sniper Tower', type: 'sniper', maxLevel: 3 },
-            scout: { cost: 150, range: 4.0, damage: 5, cooldown: 30, color: 0x888888, name: 'Scout Tower', type: 'scout', maxLevel: 8 },
-            pyro: { cost: 200, range: 2.5, damage: 1, cooldown: 5, color: 0xff6600, name: 'Pyromancer', type: 'pyro', maxLevel: 5 },
-            tesla: { cost: 300, range: 3.0, damage: 15, cooldown: 45, color: 0x00ccff, name: 'Tesla Coil', type: 'tesla', maxLevel: 4 },
+            basic: { cost: 100, range: 5.0, damage: 15, cooldown: 50, color: 0x3b82f6, name: 'Basic Tower', type: 'basic', maxLevel: 10 },
+            sniper: { cost: 250, range: 500.0, damage: 150, cooldown: 120, color: 0x555555, name: 'Sniper Tower', type: 'sniper', maxLevel: 3 },
+            scout: { cost: 150, range: 4.0, damage: 10, cooldown: 25, color: 0x888888, name: 'Scout Tower', type: 'scout', maxLevel: 8 },
+            pyro: { cost: 200, range: 2.5, damage: 3, cooldown: 5, color: 0xff6600, name: 'Pyromancer', type: 'pyro', maxLevel: 5 },
+            tesla: { cost: 300, range: 3.0, damage: 25, cooldown: 45, color: 0x00ccff, name: 'Tesla Coil', type: 'tesla', maxLevel: 4 },
             // New Towers
-            glacier: { cost: 350, range: 4.0, damage: 5, cooldown: 40, color: 0x00ffff, name: 'Glacier', type: 'glacier', isSlow: true, maxLevel: 4 },
-            rocket: { cost: 600, range: 7.0, damage: 40, cooldown: 120, color: 0x228b22, name: 'Rocket', type: 'rocket', isSplash: true, splashRadius: 2.5, maxLevel: 3 },
+            glacier: { cost: 350, range: 4.0, damage: 15, cooldown: 40, color: 0x00ffff, name: 'Glacier', type: 'glacier', isSlow: true, maxLevel: 4 },
+            rocket: { cost: 600, range: 7.0, damage: 100, cooldown: 100, color: 0x228b22, name: 'Rocket', type: 'rocket', isSplash: true, splashRadius: 2.5, maxLevel: 3 },
             amp: { cost: 800, range: 4.5, damage: 0, cooldown: 0, color: 0x9333ea, name: 'Amplifier', type: 'amp', isSupport: true, maxLevel: 3 },
-            railgun: { cost: 1000, range: 12.0, damage: 60, cooldown: 90, color: 0xff0000, name: 'Railgun', type: 'railgun', isPiercing: true, maxLevel: 3 },
-            miner: { cost: 400, range: 0, damage: 0, cooldown: 300, color: 0xffaa00, name: 'Nanominer', type: 'miner', isEconomy: true, generation: 25, maxLevel: 10 }
+            railgun: { cost: 1000, range: 12.0, damage: 200, cooldown: 80, color: 0xff0000, name: 'Railgun', type: 'railgun', isPiercing: true, maxLevel: 3 },
+            miner: { cost: 400, range: 0, damage: 0, cooldown: 300, color: 0xffaa00, name: 'Nanominer', type: 'miner', isEconomy: true, generation: 50, maxLevel: 10 }
         };
 
         const UPGRADE_COST_BASE = 100; // Cost increases per level
@@ -1269,6 +1278,34 @@
                 btnStartWave.style.display = 'none'; // Hide after start, let it run
             }
         });
+
+        // Wave Skip Logic
+        const btnSkipWave = document.getElementById('btnSkipWave');
+        const waveInput = document.getElementById('waveInput');
+        if (btnSkipWave) {
+            btnSkipWave.addEventListener('click', () => {
+                const target = parseInt(waveInput.value);
+                if (target >= 1) {
+                    wave = target;
+                    document.getElementById('waveDisplay').textContent = wave;
+                    waveState = 'IDLE';
+
+                    // Clear existing enemies
+                    enemies.forEach(e => {
+                        scene.remove(e.mesh);
+                        if (e.healthBar) e.healthBar.remove();
+                    });
+                    enemies.length = 0;
+                    document.getElementById('enemyCountDisplay').innerHTML = `Enemies: 0 | Wave: <span id="waveDisplay">${wave}</span>`;
+
+                    // Reset button
+                    btnStartWave.style.display = 'block';
+                    btnStartWave.textContent = "Start Wave";
+
+                    showError(`Warped to Wave ${wave}`);
+                }
+            });
+        }
 
         function startWave() {
             waveState = 'SPAWNING';
