@@ -543,16 +543,16 @@
         };
 
         const TOWER_TYPES = {
-            basic: { cost: 100, range: 4.0, damage: 10, cooldown: 60, color: 0x3b82f6, name: 'Basic Tower', type: 'basic', maxLevel: 10 },
+            basic: { cost: 100, range: 5.0, damage: 10, cooldown: 60, color: 0x3b82f6, name: 'Basic Tower', type: 'basic', maxLevel: 10 },
             sniper: { cost: 250, range: 500.0, damage: 50, cooldown: 120, color: 0x555555, name: 'Sniper Tower', type: 'sniper', maxLevel: 3 },
-            scout: { cost: 150, range: 3.0, damage: 5, cooldown: 30, color: 0x888888, name: 'Scout Tower', type: 'scout', maxLevel: 8 },
+            scout: { cost: 150, range: 4.0, damage: 5, cooldown: 30, color: 0x888888, name: 'Scout Tower', type: 'scout', maxLevel: 8 },
             pyro: { cost: 200, range: 2.5, damage: 1, cooldown: 5, color: 0xff6600, name: 'Pyromancer', type: 'pyro', maxLevel: 5 },
-            tesla: { cost: 300, range: 3.5, damage: 15, cooldown: 45, color: 0x00ccff, name: 'Tesla Coil', type: 'tesla', maxLevel: 4 },
+            tesla: { cost: 300, range: 3.0, damage: 15, cooldown: 45, color: 0x00ccff, name: 'Tesla Coil', type: 'tesla', maxLevel: 4 },
             // New Towers
-            glacier: { cost: 350, range: 3.5, damage: 5, cooldown: 40, color: 0x00ffff, name: 'Glacier', type: 'glacier', isSlow: true, maxLevel: 4 },
-            rocket: { cost: 600, range: 6.0, damage: 40, cooldown: 120, color: 0x228b22, name: 'Rocket', type: 'rocket', isSplash: true, splashRadius: 2.5, maxLevel: 3 },
-            amp: { cost: 800, range: 4.0, damage: 0, cooldown: 0, color: 0x9333ea, name: 'Amplifier', type: 'amp', isSupport: true, maxLevel: 3 },
-            railgun: { cost: 1000, range: 8.0, damage: 60, cooldown: 90, color: 0xff0000, name: 'Railgun', type: 'railgun', isPiercing: true, maxLevel: 3 },
+            glacier: { cost: 350, range: 4.0, damage: 5, cooldown: 40, color: 0x00ffff, name: 'Glacier', type: 'glacier', isSlow: true, maxLevel: 4 },
+            rocket: { cost: 600, range: 7.0, damage: 40, cooldown: 120, color: 0x228b22, name: 'Rocket', type: 'rocket', isSplash: true, splashRadius: 2.5, maxLevel: 3 },
+            amp: { cost: 800, range: 4.5, damage: 0, cooldown: 0, color: 0x9333ea, name: 'Amplifier', type: 'amp', isSupport: true, maxLevel: 3 },
+            railgun: { cost: 1000, range: 12.0, damage: 60, cooldown: 90, color: 0xff0000, name: 'Railgun', type: 'railgun', isPiercing: true, maxLevel: 3 },
             miner: { cost: 400, range: 0, damage: 0, cooldown: 300, color: 0xffaa00, name: 'Nanominer', type: 'miner', isEconomy: true, generation: 25, maxLevel: 10 }
         };
 
@@ -2357,40 +2357,86 @@
         function createNanominerMesh(level = 1) {
             const group = new THREE.Group();
 
-            const matOrange = new THREE.MeshStandardMaterial({ color: 0xffaa00, metalness: 0.6 });
+            const isGold = level >= 6;
+            const mainColor = isGold ? 0xffd700 : 0xffaa00;
+            const matMain = new THREE.MeshStandardMaterial({ color: mainColor, metalness: 0.8, roughness: 0.2 });
             const matDark = new THREE.MeshStandardMaterial({ color: 0x222222 });
             const matHolo = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.4, wireframe: true });
+            const matEnergy = new THREE.MeshBasicMaterial({ color: 0x00ffff });
 
-            // Drilling Rig Base
-            const base = new THREE.Mesh(new THREE.BoxGeometry(2, 0.2, 2), matDark);
+            // Base
+            const base = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.2, 2.2), matDark);
             base.position.y = 0.1;
             group.add(base);
 
-            // Drill bit (always rotating?)
-            const drill = new THREE.Mesh(new THREE.ConeGeometry(0.5, 2, 8), matOrange);
-            drill.rotation.x = Math.PI;
-            drill.position.y = 1;
-            group.add(drill);
+            // Scaffold Frame
+            const legW = 0.15 + (level * 0.02);
+            const height = 2.5 + (level * 0.1);
 
-            // Scaffold
-            const leg1 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.5, 0.1), matDark);
-            leg1.position.set(0.8, 1.25, 0.8);
-            group.add(leg1);
-            const leg2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.5, 0.1), matDark);
-            leg2.position.set(-0.8, 1.25, 0.8);
-            group.add(leg2);
-            const leg3 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.5, 0.1), matDark);
-            leg3.position.set(0.8, 1.25, -0.8);
-            group.add(leg3);
-            const leg4 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.5, 0.1), matDark);
-            leg4.position.set(-0.8, 1.25, -0.8);
-            group.add(leg4);
+            const framePositions = [
+                { x: 0.9, z: 0.9 }, { x: -0.9, z: 0.9 },
+                { x: 0.9, z: -0.9 }, { x: -0.9, z: -0.9 }
+            ];
 
-            // Holographic data
+            framePositions.forEach(pos => {
+                const leg = new THREE.Mesh(new THREE.BoxGeometry(legW, height, legW), matDark);
+                leg.position.set(pos.x, height / 2, pos.z);
+                group.add(leg);
+            });
+
+            // Top Brace
+            const brace = new THREE.Mesh(new THREE.BoxGeometry(2, 0.2, 2), matDark);
+            brace.position.y = height;
+            group.add(brace);
+
+            // Drills
+            const drillCount = level >= 6 ? 4 : (level >= 3 ? 2 : 1);
+            const drillGeo = new THREE.ConeGeometry(0.4 + (level * 0.05), 1.5 + (level * 0.1), 8);
+
+            const drillPositions = [{ x: 0, z: 0 }]; // Lvl 1
+            if (drillCount === 2) drillPositions.splice(0, 1, { x: -0.5, z: 0 }, { x: 0.5, z: 0 });
+            if (drillCount === 4) drillPositions.splice(0, 1, { x: -0.5, z: -0.5 }, { x: 0.5, z: -0.5 }, { x: -0.5, z: 0.5 }, { x: 0.5, z: 0.5 });
+
+            drillPositions.forEach(pos => {
+                const drill = new THREE.Mesh(drillGeo, matMain);
+                drill.rotation.x = Math.PI; // Point down
+                drill.position.set(pos.x, 1, pos.z);
+                group.add(drill);
+
+                // Spinning shaft (visual only, static in three.js unless animated)
+                const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, height - 1, 6), matDark);
+                shaft.position.set(pos.x, height / 2 + 0.5, pos.z);
+                group.add(shaft);
+            });
+
+            // Storage / Processing Tanks (Level 2+)
             if (level >= 2) {
-                const cube = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), matHolo);
-                cube.position.y = 2.5;
-                group.add(cube);
+                const tankGeo = new THREE.CylinderGeometry(0.3, 0.3, 1, 12);
+                const tank = new THREE.Mesh(tankGeo, matMain);
+                tank.rotation.z = Math.PI / 2;
+                tank.position.set(0, 0.6, 1.2); // Front
+                group.add(tank);
+            }
+            if (level >= 4) {
+                const tank2 = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1, 12), matMain);
+                tank2.rotation.z = Math.PI / 2;
+                tank2.position.set(0, 0.6, -1.2); // Back
+                group.add(tank2);
+            }
+
+            // Holographic Status Display (Level 5+)
+            if (level >= 5) {
+                const holoChart = new THREE.Mesh(new THREE.PlaneGeometry(1, 0.8), matHolo);
+                holoChart.position.set(0, height + 0.5, 0);
+                // Cycle simple rotation in animate loop? Currently static
+                group.add(holoChart);
+            }
+
+            // Ultimate Energy Core (Level 8+)
+            if (level >= 8) {
+                const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.4), matEnergy);
+                core.position.set(0, height + 0.5, 0);
+                group.add(core);
             }
 
             return group;
