@@ -2164,44 +2164,74 @@
             const group = new THREE.Group();
 
             const metalColor = 0x2f4f4f; // Dark slate grey
-            const detailColor = 0x22c55e; // Green
+            const detailColor = level >= 3 ? 0xff4444 : 0x22c55e; // Green normally, Red for Max
             const matMetal = new THREE.MeshStandardMaterial({ color: metalColor, roughness: 0.5, metalness: 0.8 });
-            const matDetail = new THREE.MeshStandardMaterial({ color: detailColor });
+            const matDetail = new THREE.MeshStandardMaterial({ color: detailColor, emssive: detailColor, emissiveIntensity: 0.5 });
 
-            // Heavy Base
-            const base = new THREE.Mesh(new THREE.BoxGeometry(2, 0.5, 2), matMetal);
+            // Heavy Base (Scales with level)
+            const s = 1 + (level * 0.1);
+            const base = new THREE.Mesh(new THREE.BoxGeometry(2 * s, 0.5, 2 * s), matMetal);
             base.position.y = 0.25;
             group.add(base);
 
             // Turret Swivel
-            const swivel = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 0.5, 16), matMetal);
+            const swivel = new THREE.Mesh(new THREE.CylinderGeometry(0.8 * s, 0.8 * s, 0.5, 16), matMetal);
             swivel.position.y = 0.75;
             group.add(swivel);
 
             // Missile Pods
-            const podWidth = 0.6 + (level * 0.1);
-            const podL = new THREE.Mesh(new THREE.BoxGeometry(podWidth, 1, 1.5), matMetal);
-            podL.position.set(-0.8, 1.5, 0);
+            const podWidth = 0.6 + (level * 0.3); // Bigger pods
+            const podHeight = 1 + (level * 0.2);
+
+            // Left Pod
+            const podL = new THREE.Mesh(new THREE.BoxGeometry(podWidth, podHeight, 1.5), matMetal);
+            podL.position.set(-0.8 - (level * 0.1), 1.5 + (level * 0.1), 0);
             group.add(podL);
 
-            const podR = new THREE.Mesh(new THREE.BoxGeometry(podWidth, 1, 1.5), matMetal);
-            podR.position.set(0.8, 1.5, 0);
+            // Right Pod
+            const podR = new THREE.Mesh(new THREE.BoxGeometry(podWidth, podHeight, 1.5), matMetal);
+            podR.position.set(0.8 + (level * 0.1), 1.5 + (level * 0.1), 0);
             group.add(podR);
 
+            // Level 3: Central Heavy Pod
+            if (level >= 3) {
+                const podC = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.2, 2.0), matDetail);
+                podC.position.set(0, 2.2, 0);
+                group.add(podC);
+            }
+
             // Missiles (Tips sticking out)
-            const missileGeom = new THREE.ConeGeometry(0.1, 0.3, 8);
-            const missileMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const missileGeom = new THREE.ConeGeometry(0.15, 0.4, 8);
+            const missileMat = new THREE.MeshBasicMaterial({ color: level >= 3 ? 0xff0000 : 0xffff00 });
 
-            const mCount = level * 2;
-            for (let i = 0; i < mCount; i++) {
-                const m = new THREE.Mesh(missileGeom, missileMat);
-                m.rotation.x = -Math.PI / 2;
-                m.position.set(-0.8 + (Math.random() - 0.5) * 0.3, 1.5 + (Math.random() - 0.5) * 0.3, 0.8);
-                group.add(m);
+            // Generate grid of missiles based on level
+            const rows = level + 1;
+            const cols = 2;
 
-                const m2 = m.clone();
-                m2.position.set(0.8 + (Math.random() - 0.5) * 0.3, 1.5 + (Math.random() - 0.5) * 0.3, 0.8);
-                group.add(m2);
+            function addMissilesToPod(podX, podY, podZBase) {
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        const m = new THREE.Mesh(missileGeom, missileMat);
+                        m.rotation.x = -Math.PI / 2;
+                        // Spread them out on the face of the pod
+                        const offsetX = (c - 0.5) * 0.4;
+                        const offsetY = (r - (rows - 1) / 2) * 0.4;
+
+                        m.position.set(podX + offsetX, podY + offsetY, podZBase);
+                        group.add(m);
+                    }
+                }
+            }
+
+            addMissilesToPod(podL.position.x, podL.position.y, 0.8);
+            addMissilesToPod(podR.position.x, podR.position.y, 0.8);
+
+            if (level >= 3) {
+                // Big missile in center
+                const bigM = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.8, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+                bigM.rotation.x = -Math.PI / 2;
+                bigM.position.set(0, 2.2, 1.1);
+                group.add(bigM);
             }
 
             return group;
@@ -2243,43 +2273,82 @@
             const group = new THREE.Group();
 
             const matSilver = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 1.0, roughness: 0.2 });
-            const matRed = new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 1 });
+            const matRed = new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 1 + (level * 0.5) });
+            const matCore = new THREE.MeshStandardMaterial({ color: 0x00ffff, emissive: 0x00ffff, emissiveIntensity: 2 });
 
-            // Tripod Legs
-            const legGeom = new THREE.BoxGeometry(0.2, 1.5, 0.2);
+            // Tripod Legs (Scale slightly)
+            const s = 1 + (level * 0.1);
+            const legGeom = new THREE.BoxGeometry(0.2 * s, 1.5 * s, 0.2 * s);
             const leg1 = new THREE.Mesh(legGeom, matSilver);
-            leg1.position.set(0.8, 0.75, 0.8);
+            leg1.position.set(0.8 * s, 0.75 * s, 0.8 * s);
             leg1.rotation.z = -0.3;
             leg1.rotation.x = 0.3;
             group.add(leg1);
 
             const leg2 = new THREE.Mesh(legGeom, matSilver);
-            leg2.position.set(-0.8, 0.75, 0.8);
+            leg2.position.set(-0.8 * s, 0.75 * s, 0.8 * s);
             leg2.rotation.z = 0.3;
             leg2.rotation.x = 0.3;
             group.add(leg2);
 
             const leg3 = new THREE.Mesh(legGeom, matSilver);
-            leg3.position.set(0, 0.75, -0.8);
+            leg3.position.set(0, 0.75 * s, -0.8 * s);
             leg3.rotation.x = -0.3;
             group.add(leg3);
 
-            // Main Gun
-            const barrelLen = 3 + level * 0.5;
-            const gunBody = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 1.5), matSilver);
-            gunBody.position.set(0, 1.8, 0);
+            // Pivot Point
+            const pivotY = 1.8 * s;
+
+            // Main Gun Body
+            const gunBody = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 1.5), matSilver);
+            gunBody.position.set(0, pivotY, 0);
             group.add(gunBody);
 
-            // Long Barrel
-            const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, barrelLen), matSilver);
-            barrel.position.set(0, 1.8, barrelLen / 2);
-            group.add(barrel);
+            // Barrel Logic
+            const barrelLen = 3 + level * 0.8;
 
-            // Coils
-            for (let i = 0; i < 4 + level; i++) {
-                const coil = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.1), matRed);
-                coil.position.set(0, 1.8, 1 + (i * 0.5));
-                group.add(coil);
+            if (level >= 3) {
+                // DUAL BARREL MODE
+                const b1 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, barrelLen), matSilver);
+                b1.position.set(-0.35, pivotY, barrelLen / 2);
+                group.add(b1);
+
+                const b2 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, barrelLen), matSilver);
+                b2.position.set(0.35, pivotY, barrelLen / 2);
+                group.add(b2);
+
+                // Energy Core between barrels
+                const core = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, barrelLen * 0.8, 8), matCore);
+                core.rotation.x = -Math.PI / 2;
+                core.position.set(0, pivotY, barrelLen / 2);
+                group.add(core);
+
+                // Coils (Span across both)
+                for (let i = 0; i < 6; i++) {
+                    const coil = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.5, 0.2), matRed);
+                    coil.position.set(0, pivotY, 1 + (i * 0.8));
+                    group.add(coil);
+                }
+
+            } else {
+                // SINGLE BARREL MODE
+                const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, barrelLen), matSilver);
+                barrel.position.set(0, pivotY, barrelLen / 2);
+                group.add(barrel);
+
+                // Coils
+                for (let i = 0; i < 4 + level; i++) {
+                    const coil = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.2), matRed);
+                    coil.position.set(0, pivotY, 1 + (i * 0.6));
+                    group.add(coil);
+                }
+            }
+
+            // High level sight
+            if (level >= 2) {
+                const sight = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.4, 0.2), matRed);
+                sight.position.set(0, pivotY + 0.5, 0);
+                group.add(sight);
             }
 
             return group;
