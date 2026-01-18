@@ -117,6 +117,9 @@
         <h1>3D Tower Defense</h1>
         <p>Left Click: Place Tower/Select | Right Click: Rotate | Scroll: Zoom</p>
     </div>
+    <button id="btnAdminMoney"
+        style="position: fixed; top: 80px; left: 10px; z-index: 2000; background: #d946ef; color: white; border: 2px solid white; padding: 8px 15px; cursor: pointer; border-radius: 8px; font-weight: bold; box-shadow: 0 0 10px #d946ef;">+$$$
+        (ADMIN)</button>
 
     <div id="enemyCountDisplay">Enemies: 0 | Wave: <span id="waveDisplay">1</span></div>
     <div id="moneyDisplay">$500</div>
@@ -512,6 +515,18 @@
         window.selectTower = selectTower;
 
 
+
+        // Admin Money Listener
+        const btnAdmin = document.getElementById('btnAdminMoney');
+        if (btnAdmin) {
+            btnAdmin.addEventListener('click', () => {
+                money += 999999;
+                updateMoneyDisplay();
+                playSound('upgrade');
+                showError("$$$ ADMIN $$$");
+            });
+        }
+
         // --- MONEY SYSTEM ---
         let money = 500; // Starting money
         const TOWER_COSTS = {
@@ -528,17 +543,17 @@
         };
 
         const TOWER_TYPES = {
-            basic: { cost: 100, range: 4.0, damage: 10, cooldown: 60, color: 0x3b82f6, name: 'Basic Tower', type: 'basic' },
-            sniper: { cost: 250, range: 18.0, damage: 50, cooldown: 120, color: 0x555555, name: 'Sniper Tower', type: 'sniper' },
-            scout: { cost: 150, range: 3.0, damage: 5, cooldown: 30, color: 0x888888, name: 'Scout Tower', type: 'scout' },
-            pyro: { cost: 200, range: 2.5, damage: 1, cooldown: 5, color: 0xff6600, name: 'Pyromancer', type: 'pyro' },
-            tesla: { cost: 300, range: 3.5, damage: 15, cooldown: 45, color: 0x00ccff, name: 'Tesla Coil', type: 'tesla' },
+            basic: { cost: 100, range: 4.0, damage: 10, cooldown: 60, color: 0x3b82f6, name: 'Basic Tower', type: 'basic', maxLevel: 10 },
+            sniper: { cost: 250, range: 500.0, damage: 50, cooldown: 120, color: 0x555555, name: 'Sniper Tower', type: 'sniper', maxLevel: 3 },
+            scout: { cost: 150, range: 3.0, damage: 5, cooldown: 30, color: 0x888888, name: 'Scout Tower', type: 'scout', maxLevel: 8 },
+            pyro: { cost: 200, range: 2.5, damage: 1, cooldown: 5, color: 0xff6600, name: 'Pyromancer', type: 'pyro', maxLevel: 5 },
+            tesla: { cost: 300, range: 3.5, damage: 15, cooldown: 45, color: 0x00ccff, name: 'Tesla Coil', type: 'tesla', maxLevel: 4 },
             // New Towers
-            glacier: { cost: 350, range: 3.5, damage: 5, cooldown: 40, color: 0x00ffff, name: 'Glacier', type: 'glacier', isSlow: true },
-            rocket: { cost: 600, range: 6.0, damage: 40, cooldown: 120, color: 0x228b22, name: 'Rocket', type: 'rocket', isSplash: true, splashRadius: 2.5 },
-            amp: { cost: 800, range: 4.0, damage: 0, cooldown: 0, color: 0x9333ea, name: 'Amplifier', type: 'amp', isSupport: true },
-            railgun: { cost: 1000, range: 8.0, damage: 60, cooldown: 90, color: 0xff0000, name: 'Railgun', type: 'railgun', isPiercing: true },
-            miner: { cost: 400, range: 0, damage: 0, cooldown: 300, color: 0xffaa00, name: 'Nanominer', type: 'miner', isEconomy: true, generation: 25 }
+            glacier: { cost: 350, range: 3.5, damage: 5, cooldown: 40, color: 0x00ffff, name: 'Glacier', type: 'glacier', isSlow: true, maxLevel: 4 },
+            rocket: { cost: 600, range: 6.0, damage: 40, cooldown: 120, color: 0x228b22, name: 'Rocket', type: 'rocket', isSplash: true, splashRadius: 2.5, maxLevel: 3 },
+            amp: { cost: 800, range: 4.0, damage: 0, cooldown: 0, color: 0x9333ea, name: 'Amplifier', type: 'amp', isSupport: true, maxLevel: 3 },
+            railgun: { cost: 1000, range: 8.0, damage: 60, cooldown: 90, color: 0xff0000, name: 'Railgun', type: 'railgun', isPiercing: true, maxLevel: 3 },
+            miner: { cost: 400, range: 0, damage: 0, cooldown: 300, color: 0xffaa00, name: 'Nanominer', type: 'miner', isEconomy: true, generation: 25, maxLevel: 10 }
         };
 
         const UPGRADE_COST_BASE = 100; // Cost increases per level
@@ -2528,7 +2543,7 @@
                 mesh: mesh,
                 type: selectedTower,
                 level: 1,
-                maxLevel: 3,
+                maxLevel: typeData.maxLevel || 3,
                 damage: typeData.damage,
                 range: typeData.range,
                 maxCooldown: typeData.cooldown,
